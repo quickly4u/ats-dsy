@@ -10,6 +10,10 @@ import CandidatesList from './components/candidates/CandidatesList';
 import ApplicationsList from './components/applications/ApplicationsList';
 import InterviewsList from './components/interviews/InterviewsList';
 import ReportsList from './components/reports/ReportsList';
+import CommunicationsList from './components/communications/CommunicationsList';
+import TeamList from './components/team/TeamList';
+import CompanySettings from './components/settings/CompanySettings';
+import SystemSettings from './components/settings/SystemSettings';
 
 const AppContent: React.FC = () => {
   const { user, isLoading, isAuthenticated } = useAuth();
@@ -45,41 +49,13 @@ const AppContent: React.FC = () => {
       case 'reports':
         return <ReportsList />;
       case 'communications':
-        return (
-          <div className="p-6">
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">Communications</h1>
-            <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-              <p className="text-gray-600">Communication hub coming soon...</p>
-            </div>
-          </div>
-        );
+        return <CommunicationsList />;
       case 'team':
-        return (
-          <div className="p-6">
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">Team Management</h1>
-            <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-              <p className="text-gray-600">Team management features coming soon...</p>
-            </div>
-          </div>
-        );
+        return <TeamList />;
       case 'company':
-        return (
-          <div className="p-6">
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">Company Settings</h1>
-            <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-              <p className="text-gray-600">Company configuration coming soon...</p>
-            </div>
-          </div>
-        );
+        return <CompanySettings />;
       case 'settings':
-        return (
-          <div className="p-6">
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">System Settings</h1>
-            <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-              <p className="text-gray-600">System settings coming soon...</p>
-            </div>
-          </div>
-        );
+        return <SystemSettings />;
       default:
         return <Dashboard />;
     }
