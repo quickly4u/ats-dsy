@@ -1,38 +1,117 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Plus, MoreVertical } from 'lucide-react';
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import type { Application } from '../../types';
 
 interface ApplicationPipelineProps {
   applications: Application[];
   isLoading: boolean;
+  onApplicationMove?: (applicationId: string, newStage: string) => void;
 }
 
-const ApplicationPipeline: React.FC<ApplicationPipelineProps> = ({ applications, isLoading }) => {
-  // Mock pipeline stages
-  const stages = [
-    { id: '1', name: 'Applied', color: 'bg-blue-500' },
-    { id: '2', name: 'Screening', color: 'bg-yellow-500' },
-    { id: '3', name: 'Interview', color: 'bg-purple-500' },
-    { id: '4', name: 'Assessment', color: 'bg-orange-500' },
-    { id: '5', name: 'Final Review', color: 'bg-indigo-500' },
-    { id: '6', name: 'Offer', color: 'bg-green-500' },
-  ];
+interface DraggableApplicationCardProps {
+  application: Application;
+}
 
-  // Group applications by stage
-  const applicationsByStage = stages.reduce((acc, stage) => {
-    acc[stage.id] = applications.filter(app => app.currentStage.name === stage.name);
-    return acc;
-  }, {} as Record<string, Application[]>);
+interface DroppableStageProps {
+  stage: { id: string; name: string; color: string; order: number };
+  applications: Application[];
+  children: React.ReactNode;
+  canAcceptDrop?: boolean;
+}
 
-  const ApplicationCard: React.FC<{ application: Application }> = ({ application }) => (
-    <div className="bg-white rounded-lg border border-gray-200 p-4 mb-3 hover:shadow-md transition-shadow cursor-pointer">
+const DroppableStage: React.FC<DroppableStageProps> = ({ stage, applications, children, canAcceptDrop = true }) => {
+  const { isOver, setNodeRef } = useDroppable({
+    id: `stage-${stage.id}`,
+    disabled: !canAcceptDrop,
+  });
+
+  const getDropZoneStyle = () => {
+    if (!canAcceptDrop) {
+      return 'bg-gray-50 opacity-50';
+    }
+    if (isOver) {
+      return canAcceptDrop ? 'bg-blue-50 ring-2 ring-blue-300' : 'bg-red-50 ring-2 ring-red-300';
+    }
+    return 'bg-gray-50';
+  };
+
+  return (
+    <div 
+      ref={setNodeRef}
+      className={`rounded-lg p-4 min-h-[500px] transition-colors ${getDropZoneStyle()}`}
+    >
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center space-x-2">
+          <div className={`w-3 h-3 rounded-full ${stage.color}`}></div>
+          <h3 className="font-medium text-gray-900">{stage.name}</h3>
+        </div>
+        <div className="flex items-center space-x-2">
+          <span className="text-sm text-gray-500 bg-white px-2 py-1 rounded-full">
+            {applications.length}
+          </span>
+          <button className="p-1 text-gray-400 hover:text-gray-600 rounded">
+            <Plus size={16} />
+          </button>
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+};
+
+const DraggableApplicationCard: React.FC<DraggableApplicationCardProps> = ({ application }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: application.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="bg-white rounded-lg border border-gray-200 p-4 mb-3 hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing"
+    >
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center space-x-3">
-          <img
+          {/* Profile picture commented out as requested */}
+          {/* <img
             src={application.candidate.avatar || `https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=50&h=50&dpr=2`}
             alt={`${application.candidate.firstName} ${application.candidate.lastName}`}
             className="w-8 h-8 rounded-full object-cover"
-          />
+          /> */}
           <div>
             <h4 className="text-sm font-medium text-gray-900">
               {application.candidate.firstName} {application.candidate.lastName}
@@ -80,6 +159,124 @@ const ApplicationPipeline: React.FC<ApplicationPipelineProps> = ({ applications,
       )}
     </div>
   );
+};
+
+const ApplicationPipeline: React.FC<ApplicationPipelineProps> = ({ applications, isLoading, onApplicationMove }) => {
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [localApplications, setLocalApplications] = useState<Application[]>(applications);
+
+  // Update local state when props change
+  React.useEffect(() => {
+    setLocalApplications(applications);
+  }, [applications]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+  // Mock pipeline stages with order index for validation
+  const stages = [
+    { id: '1', name: 'Applied', color: 'bg-blue-500', order: 1 },
+    { id: '2', name: 'Screening', color: 'bg-yellow-500', order: 2 },
+    { id: '3', name: 'Interview', color: 'bg-purple-500', order: 3 },
+    { id: '4', name: 'Assessment', color: 'bg-orange-500', order: 4 },
+    { id: '5', name: 'Final Review', color: 'bg-indigo-500', order: 5 },
+    { id: '6', name: 'Offer', color: 'bg-green-500', order: 6 },
+  ];
+
+  // Helper function to validate stage progression
+  const isValidStageTransition = (fromStage: string, toStage: string): boolean => {
+    const fromStageObj = stages.find(s => s.name === fromStage);
+    const toStageObj = stages.find(s => s.name === toStage);
+    
+    if (!fromStageObj || !toStageObj) return false;
+    
+    // Allow moving to the next stage or staying in the same stage
+    // Prevent moving backward or skipping stages (more than 1 step forward)
+    return toStageObj.order >= fromStageObj.order && toStageObj.order <= fromStageObj.order + 1;
+  };
+
+  // Group applications by stage
+  const applicationsByStage = stages.reduce((acc, stage) => {
+    acc[stage.id] = localApplications.filter(app => app.currentStage.name === stage.name);
+    return acc;
+  }, {} as Record<string, Application[]>);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
+
+  // Helper function to determine if a stage can accept the currently dragged application
+  const canStageAcceptDrop = (stage: { name: string }, draggedApp: Application | null): boolean => {
+    if (!draggedApp) return true;
+    return isValidStageTransition(draggedApp.currentStage.name, stage.name);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+
+    if (!over) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    // Find the application being dragged
+    const draggedApplication = localApplications.find(app => app.id === activeId);
+    if (!draggedApplication) return;
+
+    // Determine target stage
+    let targetStage = null;
+    
+    // Check if dropping directly on a stage
+    if (overId.startsWith('stage-')) {
+      const stageId = overId.replace('stage-', '');
+      targetStage = stages.find(stage => stage.id === stageId);
+    } else {
+      // If dropping on another application, find which stage that application belongs to
+      const targetApplication = localApplications.find(app => app.id === overId);
+      if (targetApplication) {
+        targetStage = stages.find(stage => stage.name === targetApplication.currentStage.name);
+      }
+    }
+
+    if (targetStage && draggedApplication.currentStage.name !== targetStage.name) {
+      // Validate the stage transition
+      if (!isValidStageTransition(draggedApplication.currentStage.name, targetStage.name)) {
+        // Show a brief notification or feedback for invalid move
+        console.warn(`Invalid stage transition: ${draggedApplication.currentStage.name} → ${targetStage.name}`);
+        return;
+      }
+
+      // Update the application's stage
+      const updatedApplications = localApplications.map(app => {
+        if (app.id === activeId) {
+          return {
+            ...app,
+            currentStage: {
+              ...app.currentStage,
+              name: targetStage.name,
+              stageType: targetStage.name.toLowerCase().replace(' ', '_') as any
+            }
+          };
+        }
+        return app;
+      });
+
+      setLocalApplications(updatedApplications);
+      
+      // Call the callback if provided
+      if (onApplicationMove) {
+        onApplicationMove(activeId, targetStage.name);
+      }
+    }
+  };
+
+  const activeApplication = activeId ? localApplications.find(app => app.id === activeId) : null;
+
+
 
   if (isLoading) {
     return (
@@ -100,42 +297,77 @@ const ApplicationPipeline: React.FC<ApplicationPipelineProps> = ({ applications,
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6">
-      {stages.map((stage) => {
-        const stageApplications = applicationsByStage[stage.id] || [];
-        
-        return (
-          <div key={stage.id} className="bg-gray-50 rounded-lg p-4 min-h-[500px]">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-2">
-                <div className={`w-3 h-3 rounded-full ${stage.color}`}></div>
-                <h3 className="font-medium text-gray-900">{stage.name}</h3>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-500 bg-white px-2 py-1 rounded-full">
-                  {stageApplications.length}
-                </span>
-                <button className="p-1 text-gray-400 hover:text-gray-600 rounded">
-                  <Plus size={16} />
-                </button>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6">
+        {stages.map((stage) => {
+          const stageApplications = applicationsByStage[stage.id] || [];
+          const draggedApp = activeId ? localApplications.find(app => app.id === activeId) || null : null;
+          const canAcceptDrop = canStageAcceptDrop(stage, draggedApp);
+          
+          return (
+            <DroppableStage 
+              key={stage.id}
+              stage={stage}
+              applications={stageApplications}
+              canAcceptDrop={canAcceptDrop}
+            >
+              <SortableContext 
+                items={stageApplications.map(app => app.id)} 
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-3">
+                  {stageApplications.map((application) => (
+                    <DraggableApplicationCard key={application.id} application={application} />
+                  ))}
+                </div>
+              </SortableContext>
+              
+              {stageApplications.length === 0 && (
+                <div className={`text-center py-8 border-2 border-dashed rounded-lg ${
+                  canAcceptDrop 
+                    ? 'text-gray-500 border-gray-300' 
+                    : 'text-gray-400 border-gray-200'
+                }`}>
+                  <p className="text-sm">
+                    {canAcceptDrop ? 'Drop applications here' : 'Invalid drop target'}
+                  </p>
+                </div>
+              )}
+            </DroppableStage>
+          );
+        })}
+      </div>
+      
+      <DragOverlay>
+        {activeApplication ? (
+          <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-lg rotate-3">
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center space-x-3">
+                {/* Profile picture commented out as requested */}
+                {/* <img
+                  src={activeApplication.candidate.avatar || `https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=50&h=50&dpr=2`}
+                  alt={`${activeApplication.candidate.firstName} ${activeApplication.candidate.lastName}`}
+                  className="w-8 h-8 rounded-full object-cover"
+                /> */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-900">
+                    {activeApplication.candidate.firstName} {activeApplication.candidate.lastName}
+                  </h4>
+                  <p className="text-xs text-gray-500">
+                    {activeApplication.job.title}
+                  </p>
+                </div>
               </div>
             </div>
-            
-            <div className="space-y-3">
-              {stageApplications.map((application) => (
-                <ApplicationCard key={application.id} application={application} />
-              ))}
-            </div>
-            
-            {stageApplications.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                <p className="text-sm">No applications</p>
-              </div>
-            )}
           </div>
-        );
-      })}
-    </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   );
 };
 

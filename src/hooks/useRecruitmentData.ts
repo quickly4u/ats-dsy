@@ -5,16 +5,23 @@ import type {
   Application, 
   Interview, 
   RecruitmentMetrics,
-  APIResponse,
-  FilterOptions,
-  Client,
-  ExternalSPOC,
-  InternalSPOC,
-  JobAssignment
+  FilterOptions
 } from '../types';
 
 // Mock data generators
 const generateMockJobs = (): Job[] => {
+  // Define mockUser first since it's referenced by other objects
+  const mockUser = {
+    id: '1',
+    email: 'john@company.com',
+    firstName: 'John',
+    lastName: 'Doe',
+    company: { id: '1', name: 'TechCorp', slug: 'techcorp', subscriptionPlan: 'professional' as const, createdAt: new Date() },
+    roles: [],
+    isActive: true,
+    createdAt: new Date(),
+  };
+
   const mockClient = {
     id: '1',
     name: 'TechCorp Solutions',
@@ -64,17 +71,6 @@ const generateMockJobs = (): Job[] => {
     { id: '4', name: 'Design', isActive: true },
   ];
 
-  const mockUser = {
-    id: '1',
-    email: 'john@company.com',
-    firstName: 'John',
-    lastName: 'Doe',
-    company: { id: '1', name: 'TechCorp', slug: 'techcorp', subscriptionPlan: 'professional' as const, createdAt: new Date() },
-    roles: [],
-    isActive: true,
-    createdAt: new Date(),
-  };
-
   return [
     {
       id: '1',
@@ -117,6 +113,24 @@ const generateMockJobs = (): Job[] => {
     },
     {
       id: '2',
+      clientId: '1',
+      client: mockClient,
+      externalSpocId: '1',
+      externalSpoc: mockExternalSpoc,
+      primaryInternalSpocId: '1',
+      primaryInternalSpoc: mockInternalSpoc,
+      assignedRecruiters: [
+        {
+          id: '2',
+          jobId: '2',
+          recruiterId: '1',
+          recruiter: mockUser,
+          assignedBy: '1',
+          assignedAt: new Date(),
+          isLead: true,
+          status: 'active'
+        }
+      ],
       title: 'Product Marketing Manager',
       department: departments[1],
       description: 'Join our marketing team to drive product adoption and growth...',
@@ -131,12 +145,31 @@ const generateMockJobs = (): Job[] => {
       status: 'published' as const,
       publishedAt: new Date('2024-01-05'),
       hiringManager: mockUser,
+      assignedRecruiter: mockUser,
       applicationsCount: 23,
       viewsCount: 180,
       createdAt: new Date('2024-01-05'),
     },
     {
       id: '3',
+      clientId: '1',
+      client: mockClient,
+      externalSpocId: '1',
+      externalSpoc: mockExternalSpoc,
+      primaryInternalSpocId: '1',
+      primaryInternalSpoc: mockInternalSpoc,
+      assignedRecruiters: [
+        {
+          id: '3',
+          jobId: '3',
+          recruiterId: '1',
+          recruiter: mockUser,
+          assignedBy: '1',
+          assignedAt: new Date(),
+          isLead: true,
+          status: 'active'
+        }
+      ],
       title: 'UX Designer',
       department: departments[3],
       description: 'Create intuitive and beautiful user experiences...',
@@ -151,6 +184,7 @@ const generateMockJobs = (): Job[] => {
       status: 'published' as const,
       publishedAt: new Date('2024-01-10'),
       hiringManager: mockUser,
+      assignedRecruiter: mockUser,
       applicationsCount: 67,
       viewsCount: 450,
       createdAt: new Date('2024-01-10'),
@@ -434,7 +468,105 @@ export const useInterviews = (filters?: FilterOptions) => {
         };
         
         const mockInterviews: Interview[] = [
-          // ... your interview mock data as before ...
+          {
+            id: '1',
+            application: {
+              id: '1',
+              job: mockJobs[0],
+              candidate: mockCandidates[0],
+              currentStage: { id: '6', name: 'Interview', description: 'Technical interview stage', orderIndex: 6, stageType: 'interview', isDefault: true },
+              status: 'in-progress',
+              source: 'LinkedIn',
+              appliedAt: new Date('2024-01-02'),
+              score: 95,
+              rating: 5,
+              tags: ['Strong Technical Skills'],
+            },
+            title: 'Technical Interview',
+            description: 'Focus on React and Node.js experience',
+            scheduledAt: new Date('2024-01-15T10:00:00'),
+            durationMinutes: 60,
+            location: 'Video Call',
+            status: 'scheduled',
+            interviewRound: 1,
+            participants: [
+              {
+                id: '1',
+                user: mockUser,
+                role: 'interviewer',
+                isRequired: true,
+                status: 'confirmed'
+              }
+            ],
+            feedback: [],
+            createdAt: new Date('2024-01-10'),
+          },
+          {
+            id: '2',
+            application: {
+              id: '2',
+              job: mockJobs[1],
+              candidate: mockCandidates[1],
+              currentStage: { id: '6', name: 'Interview', description: 'HR interview stage', orderIndex: 6, stageType: 'interview', isDefault: true },
+              status: 'in-progress',
+              source: 'Indeed',
+              appliedAt: new Date('2024-01-06'),
+              score: 88,
+              rating: 4,
+              tags: ['Marketing Experience'],
+            },
+            title: 'HR Interview',
+            description: 'Discuss marketing strategy experience',
+            scheduledAt: new Date('2024-01-16T14:00:00'),
+            durationMinutes: 45,
+            location: 'Office - Conference Room A',
+            status: 'scheduled',
+            interviewRound: 1,
+            participants: [
+              {
+                id: '2',
+                user: mockUser,
+                role: 'interviewer',
+                isRequired: true,
+                status: 'confirmed'
+              }
+            ],
+            feedback: [],
+            createdAt: new Date('2024-01-12'),
+          },
+          {
+            id: '3',
+            application: {
+              id: '3',
+              job: mockJobs[2],
+              candidate: mockCandidates[2],
+              currentStage: { id: '6', name: 'Interview', description: 'Design portfolio review', orderIndex: 6, stageType: 'interview', isDefault: true },
+              status: 'in-progress',
+              source: 'Company Website',
+              appliedAt: new Date('2024-01-08'),
+              score: 92,
+              rating: 5,
+              tags: ['Portfolio Review'],
+            },
+            title: 'Design Portfolio Review',
+            description: 'Review UX portfolio and design process',
+            scheduledAt: new Date('2024-01-17T11:00:00'),
+            durationMinutes: 90,
+            location: 'Video Call',
+            status: 'scheduled',
+            interviewRound: 1,
+            participants: [
+              {
+                id: '3',
+                user: mockUser,
+                role: 'interviewer',
+                isRequired: true,
+                status: 'confirmed'
+              }
+            ],
+            feedback: [],
+            createdAt: new Date('2024-01-11'),
+          },
         ];
         
         let filteredInterviews = mockInterviews;

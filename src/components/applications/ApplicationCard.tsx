@@ -1,6 +1,5 @@
 import React from 'react';
 import { 
-  User,
   Briefcase,
   Calendar,
   Star,
@@ -79,11 +78,12 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
           className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mt-1"
         />
         
-        <img
+        {/* Profile picture commented out as requested */}
+        {/* <img
           src={application.candidate.avatar || `https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2`}
           alt={`${application.candidate.firstName} ${application.candidate.lastName}`}
           className="w-12 h-12 rounded-full object-cover"
-        />
+        /> */}
         
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between mb-2">
