@@ -32,6 +32,15 @@ export interface Role {
 
 export interface Job {
   id: string;
+  clientId: string;
+  client: Client;
+  externalSpocId: string;
+  externalSpoc: ExternalSPOC;
+  primaryInternalSpocId: string;
+  primaryInternalSpoc: InternalSPOC;
+  secondaryInternalSpocId?: string;
+  secondaryInternalSpoc?: InternalSPOC;
+  assignedRecruiters: JobAssignment[];
   title: string;
   department: Department;
   description: string;
@@ -215,4 +224,80 @@ export interface ChartData {
     borderColor: string;
     borderWidth?: number;
   }[];
+}
+
+export interface Client {
+  id: string;
+  name: string;
+  companyName: string;
+  industry: string;
+  website?: string;
+  logo?: string;
+  description?: string;
+  address: {
+    street: string;
+    city: string;
+    state: string;
+    country: string;
+    zipCode: string;
+  };
+  contactInfo: {
+    email: string;
+    phone: string;
+  };
+  contractDetails: {
+    startDate: Date;
+    endDate?: Date;
+    contractType: 'retainer' | 'contingency' | 'hybrid';
+    paymentTerms: string;
+  };
+  status: 'active' | 'inactive' | 'pending';
+  totalJobs: number;
+  activeJobs: number;
+  successfulPlacements: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ExternalSPOC {
+  id: string;
+  clientId: string;
+  client: Client;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  designation: string;
+  department?: string;
+  isPrimary: boolean;
+  avatar?: string;
+  linkedinUrl?: string;
+  notes?: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface InternalSPOC {
+  id: string;
+  userId: string;
+  user: User;
+  level: 'primary' | 'secondary';
+  clientIds: string[];
+  clients: Client[];
+  isActive: boolean;
+  assignedAt: Date;
+  assignedBy: string;
+}
+
+export interface JobAssignment {
+  id: string;
+  jobId: string;
+  recruiterId: string;
+  recruiter: User;
+  assignedBy: string;
+  assignedAt: Date;
+  isLead: boolean;
+  status: 'active' | 'completed' | 'reassigned';
+  notes?: string;
 }

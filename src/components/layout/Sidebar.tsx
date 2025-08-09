@@ -21,6 +21,7 @@ interface SidebarProps {
 
 const navigationItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'clients', label: 'Clients', icon: Building },
   { id: 'jobs', label: 'Jobs', icon: Briefcase },
   { id: 'candidates', label: 'Candidates', icon: Users },
   { id: 'applications', label: 'Applications', icon: FileText },

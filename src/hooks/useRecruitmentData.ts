@@ -6,11 +6,57 @@ import type {
   Interview, 
   RecruitmentMetrics,
   APIResponse,
-  FilterOptions 
+  FilterOptions,
+  Client,
+  ExternalSPOC,
+  InternalSPOC,
+  JobAssignment
 } from '../types';
 
 // Mock data generators
 const generateMockJobs = (): Job[] => {
+  const mockClient = {
+    id: '1',
+    name: 'TechCorp Solutions',
+    companyName: 'TechCorp Solutions Inc.',
+    industry: 'Technology',
+    contactInfo: { email: 'contact@techcorp.com', phone: '+1 (555) 123-4567' },
+    address: { street: '123 Tech St', city: 'San Francisco', state: 'CA', country: 'US', zipCode: '94105' },
+    contractDetails: { startDate: new Date(), contractType: 'retainer' as const, paymentTerms: 'Net 30' },
+    status: 'active' as const,
+    totalJobs: 15,
+    activeJobs: 8,
+    successfulPlacements: 12,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+
+  const mockExternalSpoc = {
+    id: '1',
+    clientId: '1',
+    client: mockClient,
+    firstName: 'Sarah',
+    lastName: 'Johnson',
+    email: 'sarah.johnson@techcorp.com',
+    designation: 'VP of Engineering',
+    isPrimary: true,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+
+  const mockInternalSpoc = {
+    id: '1',
+    userId: '1',
+    user: mockUser,
+    level: 'primary' as const,
+    clientIds: ['1'],
+    clients: [mockClient],
+    isActive: true,
+    assignedAt: new Date(),
+    assignedBy: '1'
+  };
+
   const departments = [
     { id: '1', name: 'Engineering', isActive: true },
     { id: '2', name: 'Marketing', isActive: true },
@@ -32,6 +78,24 @@ const generateMockJobs = (): Job[] => {
   return [
     {
       id: '1',
+      clientId: '1',
+      client: mockClient,
+      externalSpocId: '1',
+      externalSpoc: mockExternalSpoc,
+      primaryInternalSpocId: '1',
+      primaryInternalSpoc: mockInternalSpoc,
+      assignedRecruiters: [
+        {
+          id: '1',
+          jobId: '1',
+          recruiterId: '1',
+          recruiter: mockUser,
+          assignedBy: '1',
+          assignedAt: new Date(),
+          isLead: true,
+          status: 'active'
+        }
+      ],
       title: 'Senior Software Engineer',
       department: departments[0],
       description: 'We are looking for a senior software engineer to join our growing team...',

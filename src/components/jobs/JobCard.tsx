@@ -57,6 +57,11 @@ const JobCard: React.FC<JobCardProps> = ({ job, onClick }) => {
         {/* Header */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
+            <div className="flex items-center space-x-2 mb-1">
+              <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded-full">
+                {job.client?.name || 'Direct Client'}
+              </span>
+            </div>
             <h3 className="text-lg font-semibold text-gray-900 hover:text-blue-600 transition-colors">
               {job.title}
             </h3>
@@ -134,6 +139,22 @@ const JobCard: React.FC<JobCardProps> = ({ job, onClick }) => {
 
         {/* Hiring Team */}
         <div className="mt-4 pt-4 border-t border-gray-100">
+          <div className="mb-3">
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center space-x-2">
+                <span className="text-gray-500">External SPOC:</span>
+                <span className="text-gray-900 font-medium">
+                  {job.externalSpoc?.firstName} {job.externalSpoc?.lastName}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-gray-500">Internal SPOC:</span>
+                <span className="text-gray-900 font-medium">
+                  {job.primaryInternalSpoc?.user.firstName} {job.primaryInternalSpoc?.user.lastName}
+                </span>
+              </div>
+            </div>
+          </div>
           <div className="flex items-center justify-between text-sm">
             <div className="flex items-center space-x-2">
               <img

@@ -14,6 +14,8 @@ import CommunicationsList from './components/communications/CommunicationsList';
 import TeamList from './components/team/TeamList';
 import CompanySettings from './components/settings/CompanySettings';
 import SystemSettings from './components/settings/SystemSettings';
+import ClientsList from './components/clients/ClientsList';
+import SPOCManagement from './components/clients/SPOCManagement';
 
 const AppContent: React.FC = () => {
   const { user, isLoading, isAuthenticated } = useAuth();
@@ -38,6 +40,10 @@ const AppContent: React.FC = () => {
     switch (activeSection) {
       case 'dashboard':
         return <Dashboard />;
+      case 'clients':
+        return <ClientsList />;
+      case 'spocs':
+        return <SPOCManagement />;
       case 'jobs':
         return <JobsList />;
       case 'candidates':
@@ -64,6 +70,8 @@ const AppContent: React.FC = () => {
   const getSectionTitle = () => {
     const titles: Record<string, string> = {
       dashboard: 'Dashboard',
+      clients: 'Client Management',
+      spocs: 'SPOC Management',
       jobs: 'Job Management',
       candidates: 'Talent Pool',
       applications: 'Applications',
@@ -80,6 +88,8 @@ const AppContent: React.FC = () => {
   const getSectionSubtitle = () => {
     const subtitles: Record<string, string> = {
       dashboard: 'Overview of your recruitment activities and key metrics',
+      clients: 'Manage client relationships and external partnerships',
+      spocs: 'Manage external and internal points of contact',
       jobs: 'Create, manage, and track job openings',
       candidates: 'Build and manage your talent database',
       applications: 'Track candidates through your hiring pipeline',
