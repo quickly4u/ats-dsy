@@ -19,6 +19,7 @@ import {
   XCircle
 } from 'lucide-react';
 import type { ExternalSPOC, InternalSPOC, Client, User as UserType } from '../../types';
+import SPOCForm from '../forms/SPOCForm';
 
 const mockClients: Client[] = [
   {
@@ -111,6 +112,8 @@ const SPOCManagement: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClient, setSelectedClient] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [showSPOCForm, setShowSPOCForm] = useState(false);
+  const [spocFormType, setSPOCFormType] = useState<'external' | 'internal'>('external');
 
   const filteredExternalSPOCs = externalSPOCs.filter(spoc => {
     const matchesSearch = searchQuery === '' || 
@@ -130,6 +133,11 @@ const SPOCManagement: React.FC = () => {
     
     return matchesSearch;
   });
+
+  const handleSaveSPOC = (spocData: any) => {
+    console.log('Saving SPOC:', spocData);
+    // In real app, this would call an API
+  };
 
   const renderExternalSPOCs = () => (
     <div className="space-y-4">
@@ -327,7 +335,12 @@ const SPOCManagement: React.FC = () => {
             Manage external and internal points of contact
           </p>
         </div>
-        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
+        <button 
+          onClick={() => {
+            setSPOCFormType('external');
+            setShowSPOCForm(true);
+          }}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
           <Plus size={20} />
           <span>Add SPOC</span>
         </button>
@@ -487,6 +500,14 @@ const SPOCManagement: React.FC = () => {
           </p>
         </div>
       )}
+
+      {/* SPOC Form Modal */}
+      <SPOCForm
+        type={spocFormType}
+        isOpen={showSPOCForm}
+        onClose={() => setShowSPOCForm(false)}
+        onSave={handleSaveSPOC}
+      />
     </div>
   );
 };

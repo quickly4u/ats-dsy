@@ -16,6 +16,7 @@ import {
   Trash2,
   UserPlus
 } from 'lucide-react';
+import TeamMemberForm from '../forms/TeamMemberForm';
 
 interface TeamMember {
   id: string;
@@ -113,6 +114,7 @@ const mockTeamMembers: TeamMember[] = [
 const TeamList: React.FC = () => {
   const [teamMembers] = useState<TeamMember[]>(mockTeamMembers);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showMemberForm, setShowMemberForm] = useState(false);
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
@@ -178,6 +180,11 @@ const TeamList: React.FC = () => {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
+  const handleSaveMember = (memberData: any) => {
+    console.log('Saving team member:', memberData);
+    // In real app, this would call an API
+  };
+
   const activeMembers = teamMembers.filter(m => m.status === 'active').length;
   const pendingMembers = teamMembers.filter(m => m.status === 'pending').length;
   const totalPermissions = [...new Set(teamMembers.flatMap(m => m.permissions))].length;
@@ -197,7 +204,10 @@ const TeamList: React.FC = () => {
             <Shield size={20} />
             <span>Roles & Permissions</span>
           </button>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
+          <button 
+            onClick={() => setShowMemberForm(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+          >
             <UserPlus size={20} />
             <span>Invite User</span>
           </button>
@@ -444,6 +454,14 @@ const TeamList: React.FC = () => {
           </p>
         </div>
       )}
+    </div>
+
+      {/* Team Member Form Modal */}
+      <TeamMemberForm
+        isOpen={showMemberForm}
+        onClose={() => setShowMemberForm(false)}
+        onSave={handleSaveMember}
+      />
     </div>
   );
 };

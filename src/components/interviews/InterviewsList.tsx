@@ -15,15 +15,22 @@ import {
 import { useInterviews } from '../../hooks/useRecruitmentData';
 import type { Interview, FilterOptions } from '../../types';
 import InterviewCard from './InterviewCard';
+import InterviewForm from '../forms/InterviewForm';
 
 const InterviewsList: React.FC = () => {
   const [filters, setFilters] = useState<FilterOptions>({});
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [showInterviewForm, setShowInterviewForm] = useState(false);
   const { interviews, isLoading, error } = useInterviews(filters);
 
   const handleSearch = (search: string) => {
     setFilters(prev => ({ ...prev, search }));
+  };
+
+  const handleSaveInterview = (interviewData: Partial<Interview>) => {
+    console.log('Saving interview:', interviewData);
+    // In real app, this would call an API
   };
 
   const getStatusColor = (status: string) => {
@@ -72,7 +79,10 @@ const InterviewsList: React.FC = () => {
             Schedule and manage interview processes
           </p>
         </div>
-        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
+        <button 
+          onClick={() => setShowInterviewForm(true)}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+        >
           <Plus size={20} />
           <span>Schedule Interview</span>
         </button>
@@ -277,12 +287,24 @@ const InterviewsList: React.FC = () => {
             Schedule your first interview to get started.
           </p>
           <div className="mt-6">
-            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+            <button 
+              onClick={() => setShowInterviewForm(true)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
               Schedule Interview
             </button>
           </div>
         </div>
       )}
+    </div>
+  );
+
+      {/* Interview Form Modal */}
+      <InterviewForm
+        isOpen={showInterviewForm}
+        onClose={() => setShowInterviewForm(false)}
+        onSave={handleSaveInterview}
+      />
     </div>
   );
 };

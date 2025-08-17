@@ -17,12 +17,14 @@ import { useApplications } from '../../hooks/useRecruitmentData';
 import type { Application, FilterOptions } from '../../types';
 import ApplicationCard from './ApplicationCard';
 import ApplicationPipeline from './ApplicationPipeline';
+import ApplicationForm from '../forms/ApplicationForm';
 
 const ApplicationsList: React.FC = () => {
   const [filters, setFilters] = useState<FilterOptions>({});
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'pipeline'>('pipeline');
   const [selectedApplications, setSelectedApplications] = useState<Set<string>>(new Set());
+  const [showApplicationForm, setShowApplicationForm] = useState(false);
   const { applications, isLoading, error } = useApplications(filters);
 
   const handleSearch = (search: string) => {
@@ -37,6 +39,11 @@ const ApplicationsList: React.FC = () => {
       newSelected.delete(applicationId);
     }
     setSelectedApplications(newSelected);
+  };
+
+  const handleSaveApplication = (applicationData: Partial<Application>) => {
+    console.log('Saving application:', applicationData);
+    // In real app, this would call an API
   };
 
   const getStatusColor = (status: string) => {
@@ -80,6 +87,12 @@ const ApplicationsList: React.FC = () => {
           <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center space-x-2">
             <Download size={20} />
             <span>Export</span>
+          </button>
+          <button 
+            onClick={() => setShowApplicationForm(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
+            <Plus size={20} />
+            <span>Add Application</span>
           </button>
         </div>
       </div>
@@ -230,6 +243,14 @@ const ApplicationsList: React.FC = () => {
           </p>
         </div>
       )}
+    </div>
+
+      {/* Application Form Modal */}
+      <ApplicationForm
+        isOpen={showApplicationForm}
+        onClose={() => setShowApplicationForm(false)}
+        onSave={handleSaveApplication}
+      />
     </div>
   );
 };
