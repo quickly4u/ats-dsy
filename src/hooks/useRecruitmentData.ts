@@ -113,6 +113,19 @@ export const useJobs = (filters?: FilterOptions) => {
         if (filters?.status?.length) {
           result = result.filter(job => filters.status!.includes(job.status));
         }
+        if (filters?.employmentType?.length) {
+          result = result.filter(job => filters.employmentType!.includes(job.employmentType));
+        }
+        if (filters?.experienceLevel?.length) {
+          result = result.filter(job => filters.experienceLevel!.includes(job.experienceLevel));
+        }
+        if (filters?.remoteType?.length) {
+          result = result.filter(job => filters.remoteType!.includes(job.remoteType));
+        }
+        if (filters?.location?.length) {
+          const locs = filters.location.map(l => l.toLowerCase());
+          result = result.filter(job => locs.some(l => job.location?.toLowerCase().includes(l)));
+        }
 
         setJobs(result);
         setError(null);
@@ -223,6 +236,30 @@ export const useCandidates = (filters?: FilterOptions) => {
             candidate.email.toLowerCase().includes(q) ||
             candidate.skills.some(skill => skill.toLowerCase().includes(q))
           );
+        }
+        if (filters?.location?.length) {
+          const locs = filters.location.map(l => l.toLowerCase());
+          result = result.filter(c => locs.some(l => (c.location || '').toLowerCase().includes(l)));
+        }
+        if (filters?.experienceLevel?.length) {
+          const levelMatches = (years?: number) => {
+            if (years == null) return false;
+            const has = (lvl: string) => filters.experienceLevel!.includes(lvl);
+            return (
+              (has('entry') && years <= 2) ||
+              (has('mid') && years >= 3 && years <= 5) ||
+              (has('senior') && years >= 6 && years <= 9) ||
+              (has('executive') && years >= 10)
+            );
+          };
+          result = result.filter(c => levelMatches(c.experienceYears));
+        }
+        if (filters?.skills?.length) {
+          const wanted = filters.skills.map(s => s.toLowerCase());
+          result = result.filter(c => c.skills.some(s => wanted.some(w => s.toLowerCase().includes(w))));
+        }
+        if (typeof filters?.minRating === 'number') {
+          result = result.filter(c => (c.rating ?? -Infinity) >= (filters.minRating as number));
         }
 
         setCandidates(result);

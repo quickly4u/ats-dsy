@@ -3,24 +3,20 @@ import {
   Briefcase, 
   Plus, 
   Search, 
-  Filter,
-  MapPin,
-  Calendar,
-  DollarSign,
-  Users,
-  Eye,
-  Edit,
-  MoreVertical
+  Filter
 } from 'lucide-react';
 import { useJobs } from '../../hooks/useRecruitmentData';
 import type { Job, FilterOptions } from '../../types';
 import JobCard from './JobCard';
 import JobForm from '../forms/JobForm';
+import JobDetailsModal from './JobDetailsModal';
 
 const JobsList: React.FC = () => {
   const [filters, setFilters] = useState<FilterOptions>({});
   const [showFilters, setShowFilters] = useState(false);
   const [showJobForm, setShowJobForm] = useState(false);
+  const [showJobDetails, setShowJobDetails] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<Job | undefined>(undefined);
   const { jobs, isLoading, error } = useJobs(filters);
 
   const handleSearch = (search: string) => {
@@ -55,7 +51,7 @@ const JobsList: React.FC = () => {
         </div>
         <div className="flex items-center space-x-3">
           <button 
-            onClick={() => setShowJobForm(true)}
+            onClick={() => { setSelectedJob(undefined); setShowJobForm(true); }}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
           >
             <Plus size={20} />
@@ -105,7 +101,12 @@ const JobsList: React.FC = () => {
           ))
         ) : (
           jobs.map((job) => (
-            <JobCard key={job.id} job={job} />
+            <JobCard
+              key={job.id}
+              job={job}
+              onEdit={() => { setSelectedJob(job); setShowJobForm(true); }}
+              onView={() => { setSelectedJob(job); setShowJobDetails(true); }}
+            />
           ))
         )}
       </div>
@@ -121,8 +122,16 @@ const JobsList: React.FC = () => {
       )}
     </div>
 
+    {/* Job Details Modal */}
+    <JobDetailsModal
+      job={selectedJob}
+      isOpen={showJobDetails}
+      onClose={() => setShowJobDetails(false)}
+    />
+
     {/* Job Form Modal */}
     <JobForm
+      job={selectedJob}
       isOpen={showJobForm}
       onClose={() => setShowJobForm(false)}
       onSave={handleSaveJob}

@@ -205,6 +205,9 @@ export interface FilterOptions {
   location?: string[];
   experienceLevel?: string[];
   employmentType?: string[];
+  remoteType?: string[];
+  skills?: string[];
+  minRating?: number;
   dateRange?: {
     from: Date;
     to: Date;

@@ -13,9 +13,11 @@ import type { Job } from '../../types';
 interface JobCardProps {
   job: Job;
   onClick?: () => void;
+  onEdit?: () => void;
+  onView?: () => void;
 }
 
-const JobCard: React.FC<JobCardProps> = ({ job, onClick }) => {
+const JobCard: React.FC<JobCardProps> = ({ job, onClick, onEdit, onView }) => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'published':
@@ -128,10 +130,20 @@ const JobCard: React.FC<JobCardProps> = ({ job, onClick }) => {
           </div>
           
           <div className="flex items-center space-x-2">
-            <button className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+            <button
+              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              onClick={(e) => { e.stopPropagation(); onEdit?.(); }}
+              aria-label="Edit job"
+              title="Edit"
+            >
               <Edit size={16} />
             </button>
-            <button className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
+            <button
+              className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+              onClick={(e) => { e.stopPropagation(); onView?.(); }}
+              aria-label="View job"
+              title="View"
+            >
               <Eye size={16} />
             </button>
           </div>

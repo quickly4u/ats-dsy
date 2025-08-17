@@ -14,12 +14,15 @@ import {
 import { useCandidates } from '../../hooks/useRecruitmentData';
 import type { Candidate, FilterOptions } from '../../types';
 import CandidateForm from '../forms/CandidateForm';
+import CandidateDetailsModal from './CandidateDetailsModal';
 
 const CandidatesList: React.FC = () => {
   const [filters, setFilters] = useState<FilterOptions>({});
   const [showFilters, setShowFilters] = useState(false);
   const [showCandidateForm, setShowCandidateForm] = useState(false);
   const { candidates, isLoading, error } = useCandidates(filters);
+  const [showCandidateDetails, setShowCandidateDetails] = useState(false);
+  const [activeCandidate, setActiveCandidate] = useState<Candidate | undefined>(undefined);
 
   const handleSearch = (search: string) => {
     setFilters(prev => ({ ...prev, search }));
@@ -148,7 +151,10 @@ const CandidatesList: React.FC = () => {
               
               <div className="flex items-center justify-between pt-4 border-t border-gray-100">
                 <div className="flex items-center space-x-2">
-                  <button className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                  <button
+                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    onClick={() => { setActiveCandidate(candidate); setShowCandidateDetails(true); }}
+                  >
                     <Eye size={16} />
                   </button>
                   <button className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
@@ -156,7 +162,10 @@ const CandidatesList: React.FC = () => {
                   </button>
                 </div>
                 
-                <button className="px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors">
+                <button
+                  className="px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
+                  onClick={() => { setActiveCandidate(candidate); setShowCandidateDetails(true); }}
+                >
                   View Profile
                 </button>
               </div>
@@ -175,6 +184,13 @@ const CandidatesList: React.FC = () => {
         </div>
       )}
     </div>
+
+    {/* Candidate Details Modal */}
+    <CandidateDetailsModal
+      isOpen={showCandidateDetails}
+      candidate={activeCandidate}
+      onClose={() => { setShowCandidateDetails(false); setActiveCandidate(undefined); }}
+    />
 
     {/* Candidate Form Modal */}
     <CandidateForm
