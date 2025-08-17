@@ -7,261 +7,9 @@ import type {
   RecruitmentMetrics,
   FilterOptions
 } from '../types';
+import { supabase } from '../lib/supabase';
 
-// Mock data generators
-const generateMockJobs = (): Job[] => {
-  // Define mockUser first since it's referenced by other objects
-  const mockUser = {
-    id: '1',
-    email: 'john@company.com',
-    firstName: 'John',
-    lastName: 'Doe',
-    company: { id: '1', name: 'TechCorp', slug: 'techcorp', subscriptionPlan: 'professional' as const, createdAt: new Date() },
-    roles: [],
-    isActive: true,
-    createdAt: new Date(),
-  };
-
-  const mockClient = {
-    id: '1',
-    name: 'TechCorp Solutions',
-    companyName: 'TechCorp Solutions Inc.',
-    industry: 'Technology',
-    contactInfo: { email: 'contact@techcorp.com', phone: '+1 (555) 123-4567' },
-    address: { street: '123 Tech St', city: 'San Francisco', state: 'CA', country: 'US', zipCode: '94105' },
-    contractDetails: { startDate: new Date(), contractType: 'retainer' as const, paymentTerms: 'Net 30' },
-    status: 'active' as const,
-    totalJobs: 15,
-    activeJobs: 8,
-    successfulPlacements: 12,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  };
-
-  const mockExternalSpoc = {
-    id: '1',
-    clientId: '1',
-    client: mockClient,
-    firstName: 'Sarah',
-    lastName: 'Johnson',
-    email: 'sarah.johnson@techcorp.com',
-    designation: 'VP of Engineering',
-    isPrimary: true,
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  };
-
-  const mockInternalSpoc = {
-    id: '1',
-    userId: '1',
-    user: mockUser,
-    level: 'primary' as const,
-    clientIds: ['1'],
-    clients: [mockClient],
-    isActive: true,
-    assignedAt: new Date(),
-    assignedBy: '1'
-  };
-
-  const departments = [
-    { id: '1', name: 'Engineering', isActive: true },
-    { id: '2', name: 'Marketing', isActive: true },
-    { id: '3', name: 'Sales', isActive: true },
-    { id: '4', name: 'Design', isActive: true },
-  ];
-
-  return [
-    {
-      id: '1',
-      clientId: '1',
-      client: mockClient,
-      externalSpocId: '1',
-      externalSpoc: mockExternalSpoc,
-      primaryInternalSpocId: '1',
-      primaryInternalSpoc: mockInternalSpoc,
-      assignedRecruiters: [
-        {
-          id: '1',
-          jobId: '1',
-          recruiterId: '1',
-          recruiter: mockUser,
-          assignedBy: '1',
-          assignedAt: new Date(),
-          isLead: true,
-          status: 'active'
-        }
-      ],
-      title: 'Senior Software Engineer',
-      department: departments[0],
-      description: 'We are looking for a senior software engineer to join our growing team...',
-      requirements: 'Bachelor\'s degree in Computer Science, 5+ years of experience...',
-      responsibilities: 'Design and implement scalable software solutions...',
-      employmentType: 'full-time' as const,
-      experienceLevel: 'senior' as const,
-      location: 'San Francisco, CA',
-      remoteType: 'hybrid' as const,
-      salaryMin: 120000,
-      salaryMax: 180000,
-      status: 'published' as const,
-      publishedAt: new Date('2024-01-01'),
-      hiringManager: mockUser,
-      assignedRecruiter: mockUser,
-      applicationsCount: 45,
-      viewsCount: 320,
-      createdAt: new Date('2024-01-01'),
-    },
-    {
-      id: '2',
-      clientId: '1',
-      client: mockClient,
-      externalSpocId: '1',
-      externalSpoc: mockExternalSpoc,
-      primaryInternalSpocId: '1',
-      primaryInternalSpoc: mockInternalSpoc,
-      assignedRecruiters: [
-        {
-          id: '2',
-          jobId: '2',
-          recruiterId: '1',
-          recruiter: mockUser,
-          assignedBy: '1',
-          assignedAt: new Date(),
-          isLead: true,
-          status: 'active'
-        }
-      ],
-      title: 'Product Marketing Manager',
-      department: departments[1],
-      description: 'Join our marketing team to drive product adoption and growth...',
-      requirements: 'MBA preferred, 3+ years in product marketing...',
-      responsibilities: 'Develop go-to-market strategies, create marketing content...',
-      employmentType: 'full-time' as const,
-      experienceLevel: 'mid' as const,
-      location: 'New York, NY',
-      remoteType: 'remote' as const,
-      salaryMin: 80000,
-      salaryMax: 120000,
-      status: 'published' as const,
-      publishedAt: new Date('2024-01-05'),
-      hiringManager: mockUser,
-      assignedRecruiter: mockUser,
-      applicationsCount: 23,
-      viewsCount: 180,
-      createdAt: new Date('2024-01-05'),
-    },
-    {
-      id: '3',
-      clientId: '1',
-      client: mockClient,
-      externalSpocId: '1',
-      externalSpoc: mockExternalSpoc,
-      primaryInternalSpocId: '1',
-      primaryInternalSpoc: mockInternalSpoc,
-      assignedRecruiters: [
-        {
-          id: '3',
-          jobId: '3',
-          recruiterId: '1',
-          recruiter: mockUser,
-          assignedBy: '1',
-          assignedAt: new Date(),
-          isLead: true,
-          status: 'active'
-        }
-      ],
-      title: 'UX Designer',
-      department: departments[3],
-      description: 'Create intuitive and beautiful user experiences...',
-      requirements: 'Portfolio demonstrating UX design skills, 2+ years experience...',
-      responsibilities: 'User research, wireframing, prototyping, usability testing...',
-      employmentType: 'full-time' as const,
-      experienceLevel: 'mid' as const,
-      location: 'Austin, TX',
-      remoteType: 'hybrid' as const,
-      salaryMin: 70000,
-      salaryMax: 95000,
-      status: 'published' as const,
-      publishedAt: new Date('2024-01-10'),
-      hiringManager: mockUser,
-      assignedRecruiter: mockUser,
-      applicationsCount: 67,
-      viewsCount: 450,
-      createdAt: new Date('2024-01-10'),
-    },
-  ];
-};
-
-const generateMockCandidates = (): Candidate[] => {
-  return [
-    {
-      id: '1',
-      email: 'sarah.johnson@email.com',
-      firstName: 'Sarah',
-      lastName: 'Johnson',
-      phone: '+1 (555) 123-4567',
-      location: 'San Francisco, CA',
-      linkedinUrl: 'https://linkedin.com/in/sarahjohnson',
-      currentCompany: 'Google',
-      currentTitle: 'Senior Software Engineer',
-      experienceYears: 6,
-      skills: ['JavaScript', 'React', 'Node.js', 'Python', 'AWS'],
-      summary: 'Experienced full-stack engineer with a passion for building scalable web applications...',
-      avatar: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
-      source: 'LinkedIn',
-      tags: ['Featured', 'Senior'],
-      rating: 4,
-      isBlacklisted: false,
-      gdprConsent: true,
-      createdAt: new Date('2024-01-02'),
-    },
-    {
-      id: '2',
-      email: 'michael.chen@email.com',
-      firstName: 'Michael',
-      lastName: 'Chen',
-      phone: '+1 (555) 234-5678',
-      location: 'New York, NY',
-      linkedinUrl: 'https://linkedin.com/in/michaelchen',
-      currentCompany: 'Facebook',
-      currentTitle: 'Product Marketing Manager',
-      experienceYears: 4,
-      skills: ['Product Marketing', 'Analytics', 'A/B Testing', 'Growth Hacking'],
-      summary: 'Results-driven product marketer with experience in B2B and B2C environments...',
-      avatar: 'https://images.pexels.com/photos/697509/pexels-photo-697509.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
-      source: 'Referral',
-      tags: ['Referral', 'Hot Lead'],
-      rating: 5,
-      isBlacklisted: false,
-      gdprConsent: true,
-      createdAt: new Date('2024-01-03'),
-    },
-    {
-      id: '3',
-      email: 'emily.davis@email.com',
-      firstName: 'Emily',
-      lastName: 'Davis',
-      phone: '+1 (555) 345-6789',
-      location: 'Austin, TX',
-      portfolioUrl: 'https://emilydavis.design',
-      currentCompany: 'Airbnb',
-      currentTitle: 'Senior UX Designer',
-      experienceYears: 5,
-      skills: ['UX Design', 'Figma', 'User Research', 'Prototyping', 'Design Systems'],
-      summary: 'Creative UX designer with a strong background in user-centered design principles...',
-      avatar: 'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
-      source: 'Company Website',
-      tags: ['Portfolio', 'Local'],
-      rating: 4,
-      isBlacklisted: false,
-      gdprConsent: true,
-      createdAt: new Date('2024-01-04'),
-    },
-  ];
-};
-
-// ✅ Removed duplicate useApplications here
-// ❗ Kept only the full version below
+// Mock data generators removed - now using real Supabase data
 
 export const useJobs = (filters?: FilterOptions) => {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -272,20 +20,106 @@ export const useJobs = (filters?: FilterOptions) => {
     const fetchJobs = async () => {
       try {
         setIsLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        let mockJobs = generateMockJobs();
+        
+        // Fetch jobs from Supabase
+        const { data: jobRows, error: jobError } = await supabase
+          .from('jobs')
+          .select(`
+            id,
+            title,
+            description,
+            requirements,
+            responsibilities,
+            employment_type,
+            experience_level,
+            location,
+            remote_type,
+            salary_min,
+            salary_max,
+            status,
+            published_at,
+            expires_at,
+            created_at,
+            client_id
+          `)
+          .order('created_at', { ascending: false });
+
+        if (jobError) {
+          throw jobError;
+        }
+
+        // Transform to Job type (simplified without complex relations for now)
+        let result: Job[] = (jobRows || []).map((j: any) => ({
+          id: j.id,
+          clientId: j.client_id || '',
+          client: {
+            id: j.client_id || '',
+            name: 'Client Name', // Would need separate client fetch
+            companyName: 'Company Name',
+            industry: 'Technology',
+            contactInfo: { email: '', phone: '' },
+            address: { street: '', city: '', state: '', country: '', zipCode: '' },
+            contractDetails: { startDate: new Date(), contractType: 'retainer', paymentTerms: '' },
+            status: 'active',
+            totalJobs: 0,
+            activeJobs: 0,
+            successfulPlacements: 0,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          },
+          externalSpocId: '',
+          externalSpoc: {
+            id: '', clientId: '', client: {} as any, firstName: '', lastName: '', 
+            email: '', designation: '', isPrimary: false, isActive: true, 
+            createdAt: new Date(), updatedAt: new Date()
+          },
+          primaryInternalSpocId: '',
+          primaryInternalSpoc: {
+            id: '', userId: '', user: {} as any, level: 'primary', clientIds: [], 
+            clients: [], isActive: true, assignedAt: new Date(), assignedBy: ''
+          },
+          assignedRecruiters: [],
+          title: j.title,
+          department: { id: '', name: 'General', isActive: true },
+          description: j.description,
+          requirements: j.requirements,
+          responsibilities: j.responsibilities,
+          employmentType: j.employment_type,
+          experienceLevel: j.experience_level,
+          location: j.location,
+          remoteType: j.remote_type,
+          salaryMin: j.salary_min,
+          salaryMax: j.salary_max,
+          status: j.status,
+          publishedAt: j.published_at ? new Date(j.published_at) : undefined,
+          expiresAt: j.expires_at ? new Date(j.expires_at) : undefined,
+          hiringManager: {
+            id: '', email: '', firstName: '', lastName: '', company: {} as any,
+            roles: [], isActive: true, createdAt: new Date()
+          },
+          applicationsCount: 0, // Would need separate count query
+          viewsCount: 0,
+          createdAt: j.created_at ? new Date(j.created_at) : new Date(),
+        }));
+
+        // Apply filters
         if (filters?.search) {
-          mockJobs = mockJobs.filter(job => 
-            job.title.toLowerCase().includes(filters.search!.toLowerCase()) ||
-            job.description.toLowerCase().includes(filters.search!.toLowerCase())
+          const q = filters.search.toLowerCase();
+          result = result.filter(job => 
+            job.title.toLowerCase().includes(q) ||
+            job.description.toLowerCase().includes(q)
           );
         }
         if (filters?.status?.length) {
-          mockJobs = mockJobs.filter(job => filters.status!.includes(job.status));
+          result = result.filter(job => filters.status!.includes(job.status));
         }
-        setJobs(mockJobs);
-      } catch (err) {
-        setError('Failed to fetch jobs');
+
+        setJobs(result);
+        setError(null);
+      } catch (err: any) {
+        console.error('Error fetching jobs:', err);
+        setError(`Failed to fetch jobs: ${err.message}`);
+        setJobs([]);
       } finally {
         setIsLoading(false);
       }
@@ -306,18 +140,97 @@ export const useCandidates = (filters?: FilterOptions) => {
     const fetchCandidates = async () => {
       try {
         setIsLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 800));
-        let mockCandidates = generateMockCandidates();
+        
+        // Fetch candidates from Supabase with basic fields only
+        const { data: candidateRows, error: candidateError } = await supabase
+          .from('candidates')
+          .select(`
+            id,
+            email,
+            first_name,
+            last_name,
+            phone,
+            location,
+            linkedin_url,
+            portfolio_url,
+            current_company,
+            current_title,
+            experience_years,
+            summary,
+            avatar,
+            resume_url,
+            source,
+            rating,
+            is_blacklisted,
+            gdpr_consent,
+            created_at
+          `)
+          .order('created_at', { ascending: false });
+
+        if (candidateError) {
+          throw candidateError;
+        }
+
+        // Fetch skills separately to avoid complex joins
+        const candidateIds = candidateRows?.map(c => c.id) || [];
+        let skillsByCandidate: Record<string, string[]> = {};
+        
+        if (candidateIds.length > 0) {
+          const { data: skillRows, error: skillError } = await supabase
+            .from('candidate_skills')
+            .select('candidate_id, skill')
+            .in('candidate_id', candidateIds);
+          
+          if (!skillError && skillRows) {
+            skillsByCandidate = skillRows.reduce((acc: Record<string, string[]>, row: any) => {
+              if (!acc[row.candidate_id]) acc[row.candidate_id] = [];
+              acc[row.candidate_id].push(row.skill);
+              return acc;
+            }, {});
+          }
+        }
+
+        // Transform to our Candidate type
+        let result: Candidate[] = (candidateRows || []).map((c: any) => ({
+          id: c.id,
+          email: c.email,
+          firstName: c.first_name,
+          lastName: c.last_name,
+          phone: c.phone || undefined,
+          location: c.location || undefined,
+          linkedinUrl: c.linkedin_url || undefined,
+          portfolioUrl: c.portfolio_url || undefined,
+          currentCompany: c.current_company || undefined,
+          currentTitle: c.current_title || undefined,
+          experienceYears: c.experience_years || undefined,
+          skills: skillsByCandidate[c.id] || [],
+          summary: c.summary || undefined,
+          avatar: c.avatar || undefined,
+          resumeUrl: c.resume_url || undefined,
+          source: c.source || 'Unknown',
+          tags: [], // Tags might be in a separate table
+          rating: c.rating || undefined,
+          isBlacklisted: !!c.is_blacklisted,
+          gdprConsent: !!c.gdpr_consent,
+          createdAt: c.created_at ? new Date(c.created_at) : new Date(),
+        }));
+
+        // Apply filters
         if (filters?.search) {
-          mockCandidates = mockCandidates.filter(candidate => 
-            `${candidate.firstName} ${candidate.lastName}`.toLowerCase().includes(filters.search!.toLowerCase()) ||
-            candidate.email.toLowerCase().includes(filters.search!.toLowerCase()) ||
-            candidate.skills.some(skill => skill.toLowerCase().includes(filters.search!.toLowerCase()))
+          const q = filters.search.toLowerCase();
+          result = result.filter(candidate => 
+            `${candidate.firstName} ${candidate.lastName}`.toLowerCase().includes(q) ||
+            candidate.email.toLowerCase().includes(q) ||
+            candidate.skills.some(skill => skill.toLowerCase().includes(q))
           );
         }
-        setCandidates(mockCandidates);
-      } catch (err) {
-        setError('Failed to fetch candidates');
+
+        setCandidates(result);
+        setError(null);
+      } catch (err: any) {
+        console.error('Error fetching candidates:', err);
+        setError(`Failed to fetch candidates: ${err.message}`);
+        setCandidates([]);
       } finally {
         setIsLoading(false);
       }
@@ -338,61 +251,253 @@ export const useApplications = (filters?: FilterOptions) => {
     const fetchApplications = async () => {
       try {
         setIsLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 800));
         
-        const mockJobs = generateMockJobs();
-        const mockCandidates = generateMockCandidates();
-        
-        const mockApplications: Application[] = [
-          {
-            id: '1',
-            job: mockJobs[0],
-            candidate: mockCandidates[0],
-            currentStage: { id: '2', name: 'Screening', description: 'Initial screening', orderIndex: 2, stageType: 'screening', isDefault: true },
-            status: 'in-progress',
-            source: 'LinkedIn',
-            appliedAt: new Date('2024-01-15'),
-            score: 85,
-            rating: 4,
-            tags: ['Featured', 'High Priority'],
-          },
-          {
-            id: '2',
-            job: mockJobs[1],
-            candidate: mockCandidates[1],
-            currentStage: { id: '5', name: 'Interview', description: 'Technical interview', orderIndex: 5, stageType: 'interview', isDefault: true },
-            status: 'in-progress',
-            source: 'Referral',
-            appliedAt: new Date('2024-01-12'),
-            score: 92,
-            rating: 5,
-            tags: ['Referral'],
-          },
-          {
-            id: '3',
-            job: mockJobs[2],
-            candidate: mockCandidates[2],
-            currentStage: { id: '8', name: 'Offer', description: 'Job offer extended', orderIndex: 8, stageType: 'offer', isDefault: true },
-            status: 'in-progress',
-            source: 'Company Website',
-            appliedAt: new Date('2024-01-08'),
-            score: 88,
-            rating: 4,
-            tags: ['Portfolio'],
-          },
-        ];
-        
-        let filteredApplications = mockApplications;
+        // Fetch applications with separate queries to avoid complex joins
+        const { data: applicationRows, error: applicationError } = await supabase
+          .from('applications')
+          .select(`
+            id,
+            status,
+            source,
+            applied_at,
+            score,
+            rating,
+            rejection_reason,
+            salary_offered,
+            notes,
+            job_id,
+            candidate_id,
+            stage_id
+          `)
+          .order('applied_at', { ascending: false });
+
+        if (applicationError) {
+          throw applicationError;
+        }
+
+        if (!applicationRows || applicationRows.length === 0) {
+          setApplications([]);
+          return;
+        }
+
+        // Get unique IDs for separate queries
+        const jobIds = [...new Set(applicationRows.map(app => app.job_id).filter(Boolean))];
+        const candidateIds = [...new Set(applicationRows.map(app => app.candidate_id).filter(Boolean))];
+        const stageIds = [...new Set(applicationRows.map(app => app.stage_id).filter(Boolean))];
+
+        // Fetch jobs
+        const { data: jobRows, error: jobError } = await supabase
+          .from('jobs')
+          .select(`
+            id,
+            title,
+            description,
+            requirements,
+            responsibilities,
+            employment_type,
+            experience_level,
+            location,
+            remote_type,
+            salary_min,
+            salary_max,
+            status,
+            published_at,
+            expires_at,
+            created_at,
+            client_id
+          `)
+          .in('id', jobIds);
+
+        if (jobError) {
+          console.warn('Error fetching jobs:', jobError);
+        }
+
+        // Fetch candidates
+        const { data: candidateRows, error: candidateError } = await supabase
+          .from('candidates')
+          .select(`
+            id,
+            email,
+            first_name,
+            last_name,
+            phone,
+            location,
+            linkedin_url,
+            portfolio_url,
+            current_company,
+            current_title,
+            experience_years,
+            summary,
+            avatar,
+            resume_url,
+            source,
+            rating,
+            is_blacklisted,
+            gdpr_consent,
+            created_at
+          `)
+          .in('id', candidateIds);
+
+        if (candidateError) {
+          console.warn('Error fetching candidates:', candidateError);
+        }
+
+        // Fetch stages
+        const { data: stageRows, error: stageError } = await supabase
+          .from('stages')
+          .select(`
+            id,
+            name,
+            description,
+            order_index,
+            stage_type,
+            is_default
+          `)
+          .in('id', stageIds);
+
+        if (stageError) {
+          console.warn('Error fetching stages:', stageError);
+        }
+
+        // Create lookup maps
+        const jobsMap = new Map((jobRows || []).map(job => [job.id, job]));
+        const candidatesMap = new Map((candidateRows || []).map(candidate => [candidate.id, candidate]));
+        const stagesMap = new Map((stageRows || []).map(stage => [stage.id, stage]));
+
+        // Transform to Application type
+        const result: Application[] = applicationRows.map((app: any) => {
+          const jobRow = jobsMap.get(app.job_id);
+          const candidateRow = candidatesMap.get(app.candidate_id);
+          const stageRow = stagesMap.get(app.stage_id);
+
+          // Create job object
+          const job: Job = jobRow ? {
+            id: jobRow.id,
+            clientId: jobRow.client_id || '',
+            client: {
+              id: jobRow.client_id || '',
+              name: 'Client Name', // Would need separate client fetch
+              companyName: 'Company Name',
+              industry: 'Technology',
+              contactInfo: { email: '', phone: '' },
+              address: { street: '', city: '', state: '', country: '', zipCode: '' },
+              contractDetails: { startDate: new Date(), contractType: 'retainer', paymentTerms: '' },
+              status: 'active',
+              totalJobs: 0,
+              activeJobs: 0,
+              successfulPlacements: 0,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            },
+            externalSpocId: '',
+            externalSpoc: {
+              id: '', clientId: '', client: {} as any, firstName: '', lastName: '', 
+              email: '', designation: '', isPrimary: false, isActive: true, 
+              createdAt: new Date(), updatedAt: new Date()
+            },
+            primaryInternalSpocId: '',
+            primaryInternalSpoc: {
+              id: '', userId: '', user: {} as any, level: 'primary', clientIds: [], 
+              clients: [], isActive: true, assignedAt: new Date(), assignedBy: ''
+            },
+            assignedRecruiters: [],
+            title: jobRow.title,
+            department: { id: '', name: 'General', isActive: true },
+            description: jobRow.description,
+            requirements: jobRow.requirements,
+            responsibilities: jobRow.responsibilities,
+            employmentType: jobRow.employment_type,
+            experienceLevel: jobRow.experience_level,
+            location: jobRow.location,
+            remoteType: jobRow.remote_type,
+            salaryMin: jobRow.salary_min,
+            salaryMax: jobRow.salary_max,
+            status: jobRow.status,
+            publishedAt: jobRow.published_at ? new Date(jobRow.published_at) : undefined,
+            expiresAt: jobRow.expires_at ? new Date(jobRow.expires_at) : undefined,
+            hiringManager: {
+              id: '', email: '', firstName: '', lastName: '', company: {} as any,
+              roles: [], isActive: true, createdAt: new Date()
+            },
+            applicationsCount: 0,
+            viewsCount: 0,
+            createdAt: jobRow.created_at ? new Date(jobRow.created_at) : new Date(),
+          } : {} as Job;
+
+          // Create candidate object
+          const candidate: Candidate = candidateRow ? {
+            id: candidateRow.id,
+            email: candidateRow.email,
+            firstName: candidateRow.first_name,
+            lastName: candidateRow.last_name,
+            phone: candidateRow.phone,
+            location: candidateRow.location,
+            linkedinUrl: candidateRow.linkedin_url,
+            portfolioUrl: candidateRow.portfolio_url,
+            currentCompany: candidateRow.current_company,
+            currentTitle: candidateRow.current_title,
+            experienceYears: candidateRow.experience_years,
+            skills: [], // Would need separate skills fetch
+            summary: candidateRow.summary,
+            avatar: candidateRow.avatar,
+            resumeUrl: candidateRow.resume_url,
+            source: candidateRow.source || 'Unknown',
+            tags: [],
+            rating: candidateRow.rating,
+            isBlacklisted: !!candidateRow.is_blacklisted,
+            gdprConsent: !!candidateRow.gdpr_consent,
+            createdAt: candidateRow.created_at ? new Date(candidateRow.created_at) : new Date(),
+          } : {} as Candidate;
+
+          // Create stage object
+          const currentStage = stageRow ? {
+            id: stageRow.id,
+            name: stageRow.name,
+            description: stageRow.description,
+            orderIndex: stageRow.order_index,
+            stageType: stageRow.stage_type,
+            isDefault: !!stageRow.is_default,
+          } : {
+            id: '',
+            name: 'Applied',
+            orderIndex: 1,
+            stageType: 'application',
+            isDefault: true
+          };
+
+          return {
+            id: app.id,
+            job,
+            candidate,
+            currentStage,
+            status: app.status,
+            source: app.source || 'Unknown',
+            appliedAt: app.applied_at ? new Date(app.applied_at) : new Date(),
+            score: app.score,
+            rating: app.rating,
+            rejectionReason: app.rejection_reason,
+            salaryOffered: app.salary_offered,
+            notes: app.notes,
+            tags: [],
+          } as Application;
+        });
+
+        // Apply filters
+        let filteredApplications = result;
         if (filters?.search) {
-          filteredApplications = filteredApplications.filter(app => 
-            `${app.candidate.firstName} ${app.candidate.lastName}`.toLowerCase().includes(filters.search!.toLowerCase()) ||
-            app.job.title.toLowerCase().includes(filters.search!.toLowerCase())
+          const q = filters.search.toLowerCase();
+          filteredApplications = result.filter(app => 
+            `${app.candidate.firstName} ${app.candidate.lastName}`.toLowerCase().includes(q) ||
+            app.job.title.toLowerCase().includes(q)
           );
         }
-        
+
         setApplications(filteredApplications);
-      } catch (err) {
-        setError('Failed to fetch applications');
+        setError(null);
+      } catch (err: any) {
+        console.error('Error fetching applications:', err);
+        setError(`Failed to fetch applications: ${err.message}`);
+        setApplications([]);
       } finally {
         setIsLoading(false);
       }
@@ -407,31 +512,79 @@ export const useApplications = (filters?: FilterOptions) => {
 export const useRecruitmentMetrics = () => {
   const [metrics, setMetrics] = useState<RecruitmentMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        const mockMetrics: RecruitmentMetrics = {
-          totalJobs: 12,
-          activeJobs: 8,
-          totalApplications: 324,
-          newApplications: 23,
-          interviewsScheduled: 15,
-          offersExtended: 5,
-          hires: 3,
-          averageTimeToHire: 18.5,
-          costPerHire: 3200,
-          applicationConversionRate: 0.12,
-          sourceEffectiveness: {
-            'LinkedIn': 0.15,
-            'Indeed': 0.08,
-            'Company Website': 0.22,
-            'Referral': 0.35,
-            'Recruiters': 0.18,
-          },
+        setIsLoading(true);
+        
+        // Fetch real metrics from Supabase
+        const [jobsResult, applicationsResult, interviewsResult] = await Promise.all([
+          supabase.from('jobs').select('id, status'),
+          supabase.from('applications').select('id, status, applied_at, source'),
+          supabase.from('interviews').select('id, status')
+        ]);
+
+        const jobs = jobsResult.data || [];
+        const applications = applicationsResult.data || [];
+        const interviews = interviewsResult.data || [];
+
+        // Calculate metrics from real data
+        const totalJobs = jobs.length;
+        const activeJobs = jobs.filter(job => job.status === 'published').length;
+        const totalApplications = applications.length;
+        
+        // New applications in last 7 days
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const newApplications = applications.filter(app => 
+          new Date(app.applied_at) > sevenDaysAgo
+        ).length;
+
+        const interviewsScheduled = interviews.filter(interview => 
+          interview.status === 'scheduled'
+        ).length;
+
+        const offersExtended = applications.filter(app => 
+          app.status === 'offer'
+        ).length;
+
+        const hires = applications.filter(app => 
+          app.status === 'hired'
+        ).length;
+
+        // Calculate source effectiveness
+        const sourceStats = applications.reduce((acc, app) => {
+          const source = app.source || 'Unknown';
+          acc[source] = (acc[source] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+
+        const sourceEffectiveness = Object.entries(sourceStats).reduce((acc, [source, count]) => {
+          acc[source] = count / totalApplications;
+          return acc;
+        }, {} as Record<string, number>);
+
+        const calculatedMetrics: RecruitmentMetrics = {
+          totalJobs,
+          activeJobs,
+          totalApplications,
+          newApplications,
+          interviewsScheduled,
+          offersExtended,
+          hires,
+          averageTimeToHire: 18.5, // Would need more complex calculation
+          costPerHire: 3200, // Would need cost data
+          applicationConversionRate: totalApplications > 0 ? hires / totalApplications : 0,
+          sourceEffectiveness,
         };
-        setMetrics(mockMetrics);
+
+        setMetrics(calculatedMetrics);
+        setError(null);
+      } catch (err: any) {
+        console.error('Error fetching metrics:', err);
+        setError(`Failed to fetch metrics: ${err.message}`);
+        setMetrics(null);
       } finally {
         setIsLoading(false);
       }
@@ -440,7 +593,7 @@ export const useRecruitmentMetrics = () => {
     fetchMetrics();
   }, []);
 
-  return { metrics, isLoading };
+  return { metrics, isLoading, error };
 };
 
 export const useInterviews = (filters?: FilterOptions) => {
@@ -452,135 +605,150 @@ export const useInterviews = (filters?: FilterOptions) => {
     const fetchInterviews = async () => {
       try {
         setIsLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 600));
         
-        const mockJobs = generateMockJobs();
-        const mockCandidates = generateMockCandidates();
-        const mockUser = {
-          id: '1',
-          email: 'john@company.com',
-          firstName: 'John',
-          lastName: 'Doe',
-          company: { id: '1', name: 'TechCorp', slug: 'techcorp', subscriptionPlan: 'professional' as const, createdAt: new Date() },
-          roles: [],
-          isActive: true,
-          createdAt: new Date(),
-        };
-        
-        const mockInterviews: Interview[] = [
-          {
-            id: '1',
-            application: {
-              id: '1',
-              job: mockJobs[0],
-              candidate: mockCandidates[0],
-              currentStage: { id: '6', name: 'Interview', description: 'Technical interview stage', orderIndex: 6, stageType: 'interview', isDefault: true },
-              status: 'in-progress',
-              source: 'LinkedIn',
-              appliedAt: new Date('2024-01-02'),
-              score: 95,
-              rating: 5,
-              tags: ['Strong Technical Skills'],
+        // Fetch interviews from Supabase
+        const { data: interviewRows, error: interviewError } = await supabase
+          .from('interviews')
+          .select(`
+            id,
+            title,
+            description,
+            scheduled_at,
+            duration_minutes,
+            location,
+            status,
+            interview_round,
+            created_at,
+            application_id
+          `)
+          .order('scheduled_at', { ascending: false });
+
+        if (interviewError) {
+          throw interviewError;
+        }
+
+        if (!interviewRows || interviewRows.length === 0) {
+          setInterviews([]);
+          return;
+        }
+
+        // Get application IDs to fetch related data
+        const applicationIds = [...new Set(interviewRows.map(interview => interview.application_id).filter(Boolean))];
+
+        // Fetch applications with related data
+        const { data: applicationRows, error: applicationError } = await supabase
+          .from('applications')
+          .select(`
+            id,
+            status,
+            source,
+            applied_at,
+            score,
+            rating,
+            job_id,
+            candidate_id,
+            stage_id
+          `)
+          .in('id', applicationIds);
+
+        if (applicationError) {
+          console.warn('Error fetching applications for interviews:', applicationError);
+        }
+
+        // Create applications map
+        const applicationsMap = new Map((applicationRows || []).map(app => [app.id, app]));
+
+        // Transform to Interview type
+        const result: Interview[] = interviewRows.map((interview: any) => {
+          const applicationRow = applicationsMap.get(interview.application_id);
+
+          // Create a simplified application object
+          const application: Application = applicationRow ? {
+            id: applicationRow.id,
+            job: {
+              id: applicationRow.job_id || '',
+              title: 'Job Title', // Would need separate job fetch
+              clientId: '',
+              client: {} as any,
+              externalSpocId: '',
+              externalSpoc: {} as any,
+              primaryInternalSpocId: '',
+              primaryInternalSpoc: {} as any,
+              assignedRecruiters: [],
+              department: { id: '', name: 'General', isActive: true },
+              description: '',
+              requirements: '',
+              responsibilities: '',
+              employmentType: 'full-time',
+              experienceLevel: 'mid',
+              location: '',
+              remoteType: 'hybrid',
+              status: 'published',
+              hiringManager: {} as any,
+              applicationsCount: 0,
+              viewsCount: 0,
+              createdAt: new Date(),
             },
-            title: 'Technical Interview',
-            description: 'Focus on React and Node.js experience',
-            scheduledAt: new Date('2024-01-15T10:00:00'),
-            durationMinutes: 60,
-            location: 'Video Call',
-            status: 'scheduled',
-            interviewRound: 1,
-            participants: [
-              {
-                id: '1',
-                user: mockUser,
-                role: 'interviewer',
-                isRequired: true,
-                status: 'confirmed'
-              }
-            ],
-            feedback: [],
-            createdAt: new Date('2024-01-10'),
-          },
-          {
-            id: '2',
-            application: {
-              id: '2',
-              job: mockJobs[1],
-              candidate: mockCandidates[1],
-              currentStage: { id: '6', name: 'Interview', description: 'HR interview stage', orderIndex: 6, stageType: 'interview', isDefault: true },
-              status: 'in-progress',
-              source: 'Indeed',
-              appliedAt: new Date('2024-01-06'),
-              score: 88,
-              rating: 4,
-              tags: ['Marketing Experience'],
+            candidate: {
+              id: applicationRow.candidate_id || '',
+              email: '',
+              firstName: 'Candidate',
+              lastName: 'Name',
+              skills: [],
+              tags: [],
+              isBlacklisted: false,
+              gdprConsent: true,
+              source: applicationRow.source || 'Unknown',
+              createdAt: new Date(),
             },
-            title: 'HR Interview',
-            description: 'Discuss marketing strategy experience',
-            scheduledAt: new Date('2024-01-16T14:00:00'),
-            durationMinutes: 45,
-            location: 'Office - Conference Room A',
-            status: 'scheduled',
-            interviewRound: 1,
-            participants: [
-              {
-                id: '2',
-                user: mockUser,
-                role: 'interviewer',
-                isRequired: true,
-                status: 'confirmed'
-              }
-            ],
-            feedback: [],
-            createdAt: new Date('2024-01-12'),
-          },
-          {
-            id: '3',
-            application: {
-              id: '3',
-              job: mockJobs[2],
-              candidate: mockCandidates[2],
-              currentStage: { id: '6', name: 'Interview', description: 'Design portfolio review', orderIndex: 6, stageType: 'interview', isDefault: true },
-              status: 'in-progress',
-              source: 'Company Website',
-              appliedAt: new Date('2024-01-08'),
-              score: 92,
-              rating: 5,
-              tags: ['Portfolio Review'],
+            currentStage: {
+              id: applicationRow.stage_id || '',
+              name: 'Interview',
+              orderIndex: 6,
+              stageType: 'interview',
+              isDefault: true,
             },
-            title: 'Design Portfolio Review',
-            description: 'Review UX portfolio and design process',
-            scheduledAt: new Date('2024-01-17T11:00:00'),
-            durationMinutes: 90,
-            location: 'Video Call',
-            status: 'scheduled',
-            interviewRound: 1,
-            participants: [
-              {
-                id: '3',
-                user: mockUser,
-                role: 'interviewer',
-                isRequired: true,
-                status: 'confirmed'
-              }
-            ],
-            feedback: [],
-            createdAt: new Date('2024-01-11'),
-          },
-        ];
-        
-        let filteredInterviews = mockInterviews;
+            status: applicationRow.status,
+            source: applicationRow.source || 'Unknown',
+            appliedAt: applicationRow.applied_at ? new Date(applicationRow.applied_at) : new Date(),
+            score: applicationRow.score,
+            rating: applicationRow.rating,
+            tags: [],
+          } : {} as Application;
+
+          return {
+            id: interview.id,
+            application,
+            title: interview.title,
+            description: interview.description,
+            scheduledAt: interview.scheduled_at ? new Date(interview.scheduled_at) : new Date(),
+            durationMinutes: interview.duration_minutes || 60,
+            location: interview.location,
+            status: interview.status,
+            interviewRound: interview.interview_round || 1,
+            participants: [], // Would need separate participants fetch
+            feedback: [], // Would need separate feedback fetch
+            createdAt: interview.created_at ? new Date(interview.created_at) : new Date(),
+          } as Interview;
+        });
+
+        // Apply filters
+        let filteredInterviews = result;
         if (filters?.search) {
-          filteredInterviews = filteredInterviews.filter(interview => 
-            `${interview.application.candidate.firstName} ${interview.application.candidate.lastName}`.toLowerCase().includes(filters.search!.toLowerCase()) ||
-            interview.application.job.title.toLowerCase().includes(filters.search!.toLowerCase()) ||
-            interview.title?.toLowerCase().includes(filters.search!.toLowerCase())
+          const q = filters.search.toLowerCase();
+          filteredInterviews = result.filter(interview => 
+            `${interview.application.candidate.firstName} ${interview.application.candidate.lastName}`.toLowerCase().includes(q) ||
+            interview.application.job.title.toLowerCase().includes(q) ||
+            interview.title?.toLowerCase().includes(q)
           );
         }
         
         setInterviews(filteredInterviews);
-      } catch (err) {
-        setError('Failed to fetch interviews');
+        setError(null);
+      } catch (err: any) {
+        console.error('Error fetching interviews:', err);
+        setError(`Failed to fetch interviews: ${err.message}`);
+        setInterviews([]);
       } finally {
         setIsLoading(false);
       }
@@ -590,4 +758,207 @@ export const useInterviews = (filters?: FilterOptions) => {
   }, [filters]);
 
   return { interviews, isLoading, error };
+};
+
+export const useClients = (filters?: FilterOptions) => {
+  const [clients, setClients] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchClients = async () => {
+      try {
+        setIsLoading(true);
+        
+        const { data: clientRows, error: clientError } = await supabase
+          .from('clients')
+          .select(`
+            id,
+            name,
+            company_name,
+            industry,
+            website,
+            logo,
+            description,
+            status,
+            created_at,
+            updated_at
+          `)
+          .order('created_at', { ascending: false });
+
+        if (clientError) {
+          throw clientError;
+        }
+
+        let result = (clientRows || []).map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          companyName: c.company_name,
+          industry: c.industry || 'Unknown',
+          website: c.website,
+          logo: c.logo,
+          description: c.description,
+          address: { street: '', city: '', state: '', country: '', zipCode: '' }, // Would need separate address table
+          contactInfo: { email: '', phone: '' }, // Would need separate contact table
+          contractDetails: { startDate: new Date(), contractType: 'retainer', paymentTerms: '' },
+          status: c.status || 'active',
+          totalJobs: 0, // Would need count query
+          activeJobs: 0, // Would need count query
+          successfulPlacements: 0, // Would need count query
+          createdAt: c.created_at ? new Date(c.created_at) : new Date(),
+          updatedAt: c.updated_at ? new Date(c.updated_at) : new Date(),
+        }));
+
+        if (filters?.search) {
+          const q = filters.search.toLowerCase();
+          result = result.filter(client => 
+            client.name.toLowerCase().includes(q) ||
+            client.companyName.toLowerCase().includes(q) ||
+            client.industry.toLowerCase().includes(q)
+          );
+        }
+
+        setClients(result);
+        setError(null);
+      } catch (err: any) {
+        console.error('Error fetching clients:', err);
+        setError(`Failed to fetch clients: ${err.message}`);
+        setClients([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchClients();
+  }, [filters]);
+
+  return { clients, isLoading, error };
+};
+
+export const useTeamMembers = (filters?: FilterOptions) => {
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchTeamMembers = async () => {
+      try {
+        setIsLoading(true);
+        
+        const { data: userRows, error: userError } = await supabase
+          .from('users')
+          .select(`
+            id,
+            email,
+            first_name,
+            last_name,
+            avatar,
+            is_active,
+            created_at
+          `)
+          .order('created_at', { ascending: false });
+
+        if (userError) {
+          throw userError;
+        }
+
+        let result = (userRows || []).map((u: any) => ({
+          id: u.id,
+          email: u.email,
+          firstName: u.first_name || '',
+          lastName: u.last_name || '',
+          avatar: u.avatar,
+          role: 'Team Member', // Would need separate role table
+          department: 'General', // Would need separate department table
+          isActive: !!u.is_active,
+          createdAt: u.created_at ? new Date(u.created_at) : new Date(),
+        }));
+
+        if (filters?.search) {
+          const q = filters.search.toLowerCase();
+          result = result.filter(member => 
+            `${member.firstName} ${member.lastName}`.toLowerCase().includes(q) ||
+            member.email.toLowerCase().includes(q)
+          );
+        }
+
+        setTeamMembers(result);
+        setError(null);
+      } catch (err: any) {
+        console.error('Error fetching team members:', err);
+        setError(`Failed to fetch team members: ${err.message}`);
+        setTeamMembers([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTeamMembers();
+  }, [filters]);
+
+  return { teamMembers, isLoading, error };
+};
+
+export const useRecentActivity = () => {
+  const [activities, setActivities] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchRecentActivity = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Fetch recent applications, interviews, and other activities
+        const [applicationsResult, interviewsResult] = await Promise.all([
+          supabase
+            .from('applications')
+            .select('id, applied_at, candidate_id, job_id')
+            .order('applied_at', { ascending: false })
+            .limit(10),
+          supabase
+            .from('interviews')
+            .select('id, scheduled_at, title, application_id')
+            .order('scheduled_at', { ascending: false })
+            .limit(10)
+        ]);
+
+        const applications = applicationsResult.data || [];
+        const interviews = interviewsResult.data || [];
+
+        // Transform to activity format
+        const activities = [
+          ...applications.map(app => ({
+            id: `app-${app.id}`,
+            type: 'application',
+            title: 'New Application',
+            description: 'New application received',
+            timestamp: new Date(app.applied_at),
+            priority: 'medium'
+          })),
+          ...interviews.map(interview => ({
+            id: `int-${interview.id}`,
+            type: 'interview',
+            title: 'Interview Scheduled',
+            description: interview.title || 'Interview scheduled',
+            timestamp: new Date(interview.scheduled_at),
+            priority: 'high'
+          }))
+        ].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()).slice(0, 10);
+
+        setActivities(activities);
+        setError(null);
+      } catch (err: any) {
+        console.error('Error fetching recent activity:', err);
+        setError(`Failed to fetch recent activity: ${err.message}`);
+        setActivities([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRecentActivity();
+  }, []);
+
+  return { activities, isLoading, error };
 };

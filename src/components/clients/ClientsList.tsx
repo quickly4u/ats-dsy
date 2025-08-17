@@ -19,104 +19,13 @@ import {
   Clock
 } from 'lucide-react';
 import type { Client } from '../../types';
+import { useClients } from '../../hooks/useRecruitmentData';
 import ClientForm from '../forms/ClientForm';
 
-const mockClients: Client[] = [
-  {
-    id: '1',
-    name: 'TechCorp Solutions',
-    companyName: 'TechCorp Solutions Inc.',
-    industry: 'Technology',
-    website: 'https://techcorp.com',
-    logo: 'https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2',
-    description: 'Leading technology solutions provider specializing in enterprise software development.',
-    address: {
-      street: '123 Tech Street',
-      city: 'San Francisco',
-      state: 'CA',
-      country: 'United States',
-      zipCode: '94105'
-    },
-    contactInfo: {
-      email: 'contact@techcorp.com',
-      phone: '+1 (555) 123-4567'
-    },
-    contractDetails: {
-      startDate: new Date('2024-01-01'),
-      contractType: 'retainer',
-      paymentTerms: 'Net 30'
-    },
-    status: 'active',
-    totalJobs: 15,
-    activeJobs: 8,
-    successfulPlacements: 12,
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-15')
-  },
-  {
-    id: '2',
-    name: 'FinanceFirst',
-    companyName: 'FinanceFirst Banking Corp',
-    industry: 'Financial Services',
-    website: 'https://financefirst.com',
-    description: 'Premier financial services company providing banking and investment solutions.',
-    address: {
-      street: '456 Wall Street',
-      city: 'New York',
-      state: 'NY',
-      country: 'United States',
-      zipCode: '10005'
-    },
-    contactInfo: {
-      email: 'hr@financefirst.com',
-      phone: '+1 (555) 987-6543'
-    },
-    contractDetails: {
-      startDate: new Date('2023-06-01'),
-      contractType: 'contingency',
-      paymentTerms: 'Net 15'
-    },
-    status: 'active',
-    totalJobs: 22,
-    activeJobs: 5,
-    successfulPlacements: 18,
-    createdAt: new Date('2023-06-01'),
-    updatedAt: new Date('2024-01-10')
-  },
-  {
-    id: '3',
-    name: 'HealthTech Innovations',
-    companyName: 'HealthTech Innovations Ltd.',
-    industry: 'Healthcare Technology',
-    website: 'https://healthtech.com',
-    description: 'Innovative healthcare technology company developing cutting-edge medical solutions.',
-    address: {
-      street: '789 Medical Drive',
-      city: 'Boston',
-      state: 'MA',
-      country: 'United States',
-      zipCode: '02101'
-    },
-    contactInfo: {
-      email: 'talent@healthtech.com',
-      phone: '+1 (555) 456-7890'
-    },
-    contractDetails: {
-      startDate: new Date('2024-03-01'),
-      contractType: 'hybrid',
-      paymentTerms: 'Net 45'
-    },
-    status: 'pending',
-    totalJobs: 3,
-    activeJobs: 3,
-    successfulPlacements: 0,
-    createdAt: new Date('2024-03-01'),
-    updatedAt: new Date('2024-03-15')
-  }
-];
+// Mock data removed - now using real Supabase data
 
 const ClientsList: React.FC = () => {
-  const [clients] = useState<Client[]>(mockClients);
+  const { clients, isLoading, error } = useClients();
   const [searchQuery, setSearchQuery] = useState('');
   const [showClientForm, setShowClientForm] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -166,12 +75,48 @@ const ClientsList: React.FC = () => {
     // In real app, this would call an API
   };
 
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="h-16 bg-gray-200 rounded"></div>
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="bg-white rounded-lg border border-gray-200 p-6">
+                <div className="h-48 bg-gray-200 rounded"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-red-800 mb-2">Error Loading Clients</h3>
+          <p className="text-red-600">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
   const totalClients = clients.length;
   const activeClients = clients.filter(c => c.status === 'active').length;
   const totalActiveJobs = clients.reduce((sum, c) => sum + c.activeJobs, 0);
   const totalPlacements = clients.reduce((sum, c) => sum + c.successfulPlacements, 0);
 
   return (
+    <>
     <div className="p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
@@ -448,13 +393,13 @@ const ClientsList: React.FC = () => {
       )}
     </div>
 
-      {/* Client Form Modal */}
-      <ClientForm
-        isOpen={showClientForm}
-        onClose={() => setShowClientForm(false)}
-        onSave={handleSaveClient}
-      />
-    </div>
+    {/* Client Form Modal */}
+    <ClientForm
+      isOpen={showClientForm}
+      onClose={() => setShowClientForm(false)}
+      onSave={handleSaveClient}
+    />
+    </>
   );
 };
 

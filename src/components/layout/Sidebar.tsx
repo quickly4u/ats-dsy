@@ -9,7 +9,6 @@ import {
   Settings, 
   Bell,
   Building,
-  MessageSquare,
   UserCheck
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
@@ -27,7 +26,6 @@ const navigationItems = [
   { id: 'applications', label: 'Applications', icon: FileText },
   { id: 'interviews', label: 'Interviews', icon: Calendar },
   { id: 'reports', label: 'Reports', icon: BarChart3 },
-  { id: 'communications', label: 'Communications', icon: MessageSquare },
   { id: 'team', label: 'Team', icon: UserCheck },
 ];
 

@@ -2,15 +2,24 @@ import React, { useState } from 'react';
 import { 
   X, 
   Save, 
-  User, 
-  Briefcase, 
   FileText, 
-  Star,
   Upload,
   Plus,
   Trash2
 } from 'lucide-react';
-import type { Application, Job, Candidate } from '../../types';
+import type { Application } from '../../types';
+
+type FormData = {
+  jobId: string;
+  candidateId: string;
+  status: 'new' | 'in-progress' | 'rejected' | 'hired' | 'withdrawn';
+  coverLetter: string;
+  score: string;
+  rating: string;
+  notes: string;
+  tags: string[];
+  customResponses: { question: string; answer: string }[];
+};
 
 interface ApplicationFormProps {
   application?: Application;
@@ -25,14 +34,13 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
   onClose, 
   onSave 
 }) => {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     jobId: application?.job?.id || '',
     candidateId: application?.candidate?.id || '',
-    source: application?.source || 'manual',
-    status: application?.status || 'new',
+    status: (application?.status ?? 'new') as FormData['status'],
     coverLetter: application?.coverLetter || '',
-    score: application?.score || '',
-    rating: application?.rating || '',
+    score: application?.score !== undefined && application?.score !== null ? String(application.score) : '',
+    rating: application?.rating !== undefined && application?.rating !== null ? String(application.rating) : '',
     notes: application?.notes || '',
     tags: application?.tags || [],
     customResponses: [] as { question: string; answer: string }[]
@@ -53,24 +61,12 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
     { id: '3', firstName: 'Emily', lastName: 'Davis', email: 'emily@email.com' }
   ];
 
-  const sources = [
-    { value: 'manual', label: 'Manual Entry' },
-    { value: 'linkedin', label: 'LinkedIn' },
-    { value: 'indeed', label: 'Indeed' },
-    { value: 'company-website', label: 'Company Website' },
-    { value: 'referral', label: 'Employee Referral' },
-    { value: 'job-board', label: 'Job Board' },
-    { value: 'social-media', label: 'Social Media' },
-    { value: 'career-fair', label: 'Career Fair' },
-    { value: 'recruiter', label: 'Recruiter Sourced' }
-  ];
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave({
       ...formData,
       score: formData.score ? parseFloat(formData.score) : undefined,
-      rating: formData.rating ? parseInt(formData.rating) : undefined
+      rating: formData.rating ? parseInt(formData.rating, 10) : undefined
     });
     onClose();
   };
@@ -122,9 +118,9 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[95vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-xl font-semibold text-gray-900">
             {application ? 'Edit Application' : 'Create New Application'}
           </h2>
@@ -136,8 +132,8 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col h-full">
-          <div className="flex-1 overflow-y-auto p-6">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
             <div className="space-y-6">
               {/* Job and Candidate Selection */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -191,30 +187,14 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
               </div>
 
               {/* Application Details */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Source *
-                  </label>
-                  <select
-                    required
-                    value={formData.source}
-                    onChange={(e) => setFormData(prev => ({ ...prev, source: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {sources.map(source => (
-                      <option key={source.value} value={source.value}>{source.label}</option>
-                    ))}
-                  </select>
-                </div>
-
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Status
                   </label>
                   <select
                     value={formData.status}
-                    onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value }))}
+                    onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as FormData['status'] }))}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="new">New</option>
@@ -444,7 +424,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end space-x-4 p-6 border-t border-gray-200 bg-gray-50">
+          <div className="flex items-center justify-end space-x-4 p-6 border-t border-gray-200 bg-gray-50 flex-shrink-0">
             <button
               type="button"
               onClick={onClose}

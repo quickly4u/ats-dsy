@@ -6,55 +6,9 @@ import {
   CheckCircle, 
   Clock 
 } from 'lucide-react';
+import { useRecentActivity } from '../../hooks/useRecruitmentData';
 
-interface ActivityItem {
-  id: string;
-  type: 'application' | 'interview' | 'hire' | 'document';
-  title: string;
-  description: string;
-  timestamp: Date;
-  user?: string;
-  priority?: 'low' | 'medium' | 'high';
-}
-
-const mockActivities: ActivityItem[] = [
-  {
-    id: '1',
-    type: 'application',
-    title: 'New Application',
-    description: 'Sarah Johnson applied for Senior Software Engineer',
-    timestamp: new Date(Date.now() - 30 * 60000), // 30 minutes ago
-    user: 'Sarah Johnson',
-    priority: 'high',
-  },
-  {
-    id: '2',
-    type: 'interview',
-    title: 'Interview Scheduled',
-    description: 'Technical interview with Michael Chen at 2:00 PM',
-    timestamp: new Date(Date.now() - 2 * 3600000), // 2 hours ago
-    user: 'Michael Chen',
-    priority: 'medium',
-  },
-  {
-    id: '3',
-    type: 'hire',
-    title: 'Offer Accepted',
-    description: 'Emily Davis accepted UX Designer position',
-    timestamp: new Date(Date.now() - 4 * 3600000), // 4 hours ago
-    user: 'Emily Davis',
-    priority: 'high',
-  },
-  {
-    id: '4',
-    type: 'document',
-    title: 'Document Uploaded',
-    description: 'Resume uploaded by Alex Thompson',
-    timestamp: new Date(Date.now() - 6 * 3600000), // 6 hours ago
-    user: 'Alex Thompson',
-    priority: 'low',
-  },
-];
+// ActivityItem interface removed - now using real data from Supabase
 
 const getActivityIcon = (type: string, priority: string = 'medium') => {
   const iconProps = {
@@ -98,6 +52,36 @@ const formatTimestamp = (date: Date) => {
 };
 
 const RecentActivity: React.FC = () => {
+  const { activities, isLoading, error } = useRecentActivity();
+
+  if (isLoading) {
+    return (
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
+        <div className="animate-pulse space-y-4">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="flex space-x-3">
+              <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+              <div className="flex-1 space-y-2">
+                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
+        <p className="text-red-600 text-sm">{error}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-6">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">
@@ -105,7 +89,7 @@ const RecentActivity: React.FC = () => {
       </h3>
       
       <div className="space-y-4">
-        {mockActivities.map((activity) => (
+        {activities.map((activity: any) => (
           <div 
             key={activity.id} 
             className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"

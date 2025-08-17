@@ -3,16 +3,37 @@ import {
   X, 
   Save, 
   Building2, 
-  Mail, 
-  Phone, 
   MapPin, 
-  Globe,
   FileText,
-  DollarSign,
-  Calendar,
   Upload
 } from 'lucide-react';
 import type { Client } from '../../types';
+
+type ClientStatus = 'active' | 'inactive' | 'pending';
+type ContractType = 'retainer' | 'contingency' | 'hybrid';
+
+type FormData = {
+  name: string;
+  companyName: string;
+  industry: string;
+  website: string;
+  description: string;
+  status: ClientStatus;
+  // Address
+  street: string;
+  city: string;
+  state: string;
+  country: string;
+  zipCode: string;
+  // Contact Info
+  email: string;
+  phone: string;
+  // Contract Details
+  contractType: ContractType;
+  paymentTerms: string;
+  startDate: string; // yyyy-mm-dd
+  endDate: string;   // yyyy-mm-dd or ''
+};
 
 interface ClientFormProps {
   client?: Client;
@@ -22,13 +43,13 @@ interface ClientFormProps {
 }
 
 const ClientForm: React.FC<ClientFormProps> = ({ client, isOpen, onClose, onSave }) => {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     name: client?.name || '',
     companyName: client?.companyName || '',
     industry: client?.industry || '',
     website: client?.website || '',
     description: client?.description || '',
-    status: client?.status || 'active',
+    status: (client?.status ?? 'active') as ClientStatus,
     // Address
     street: client?.address?.street || '',
     city: client?.address?.city || '',
@@ -39,7 +60,7 @@ const ClientForm: React.FC<ClientFormProps> = ({ client, isOpen, onClose, onSave
     email: client?.contactInfo?.email || '',
     phone: client?.contactInfo?.phone || '',
     // Contract Details
-    contractType: client?.contractDetails?.contractType || 'retainer',
+    contractType: (client?.contractDetails?.contractType ?? 'retainer') as ContractType,
     paymentTerms: client?.contractDetails?.paymentTerms || 'Net 30',
     startDate: client?.contractDetails?.startDate ? 
       new Date(client.contractDetails.startDate).toISOString().split('T')[0] : '',
@@ -87,9 +108,9 @@ const ClientForm: React.FC<ClientFormProps> = ({ client, isOpen, onClose, onSave
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[95vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-xl font-semibold text-gray-900">
             {client ? 'Edit Client' : 'Add New Client'}
           </h2>
@@ -124,8 +145,8 @@ const ClientForm: React.FC<ClientFormProps> = ({ client, isOpen, onClose, onSave
           </nav>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col h-full">
-          <div className="flex-1 overflow-y-auto p-6">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
             {/* Basic Info Tab */}
             {activeTab === 'basic' && (
               <div className="space-y-6">
@@ -202,7 +223,7 @@ const ClientForm: React.FC<ClientFormProps> = ({ client, isOpen, onClose, onSave
                     </label>
                     <select
                       value={formData.status}
-                      onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value }))}
+                      onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as ClientStatus }))}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="active">Active</option>
@@ -375,7 +396,7 @@ const ClientForm: React.FC<ClientFormProps> = ({ client, isOpen, onClose, onSave
                     <select
                       required
                       value={formData.contractType}
-                      onChange={(e) => setFormData(prev => ({ ...prev, contractType: e.target.value }))}
+                      onChange={(e) => setFormData(prev => ({ ...prev, contractType: e.target.value as ContractType }))}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="retainer">Retainer</option>
@@ -471,7 +492,7 @@ const ClientForm: React.FC<ClientFormProps> = ({ client, isOpen, onClose, onSave
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end space-x-4 p-6 border-t border-gray-200 bg-gray-50">
+          <div className="flex items-center justify-end space-x-4 p-6 border-t border-gray-200 bg-gray-50 flex-shrink-0">
             <button
               type="button"
               onClick={onClose}

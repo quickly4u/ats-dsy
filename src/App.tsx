@@ -10,7 +10,6 @@ import CandidatesList from './components/candidates/CandidatesList';
 import ApplicationsList from './components/applications/ApplicationsList';
 import InterviewsList from './components/interviews/InterviewsList';
 import ReportsList from './components/reports/ReportsList';
-import CommunicationsList from './components/communications/CommunicationsList';
 import TeamList from './components/team/TeamList';
 import CompanySettings from './components/settings/CompanySettings';
 import SystemSettings from './components/settings/SystemSettings';
@@ -18,7 +17,7 @@ import ClientsList from './components/clients/ClientsList';
 import SPOCManagement from './components/clients/SPOCManagement';
 
 const AppContent: React.FC = () => {
-  const { user, isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated } = useAuth();
   const [activeSection, setActiveSection] = useState('dashboard');
 
   if (isLoading) {
@@ -54,8 +53,6 @@ const AppContent: React.FC = () => {
         return <InterviewsList />;
       case 'reports':
         return <ReportsList />;
-      case 'communications':
-        return <CommunicationsList />;
       case 'team':
         return <TeamList />;
       case 'company':
@@ -77,7 +74,6 @@ const AppContent: React.FC = () => {
       applications: 'Applications',
       interviews: 'Interviews',
       reports: 'Reports & Analytics',
-      communications: 'Communications',
       team: 'Team Management',
       company: 'Company Settings',
       settings: 'System Settings',
@@ -95,7 +91,6 @@ const AppContent: React.FC = () => {
       applications: 'Track candidates through your hiring pipeline',
       interviews: 'Schedule and manage interview processes',
       reports: 'Analyze recruitment performance and trends',
-      communications: 'Manage candidate communications and templates',
       team: 'Manage users, roles, and permissions',
       company: 'Configure company settings and preferences',
       settings: 'System configuration and integrations',

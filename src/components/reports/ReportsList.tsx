@@ -7,11 +7,7 @@ import {
   DollarSign,
   Target,
   Download,
-  Plus,
-  Filter,
-  Calendar,
-  PieChart,
-  LineChart
+  Plus
 } from 'lucide-react';
 import { useRecruitmentMetrics } from '../../hooks/useRecruitmentData';
 import Chart from '../common/Chart';
@@ -20,7 +16,7 @@ import MetricCard from '../common/MetricCard';
 const ReportsList: React.FC = () => {
   const [selectedTimeRange, setSelectedTimeRange] = useState('30d');
   const [selectedReport, setSelectedReport] = useState('overview');
-  const { metrics, isLoading } = useRecruitmentMetrics();
+  const { metrics, isLoading, error } = useRecruitmentMetrics();
 
   const timeRanges = [
     { value: '7d', label: 'Last 7 days' },
@@ -66,13 +62,8 @@ const ReportsList: React.FC = () => {
     datasets: [{
       label: 'Conversion Rate (%)',
       data: Object.values(metrics.sourceEffectiveness).map(rate => rate * 100),
-      backgroundColor: [
-        'rgba(59, 130, 246, 0.8)',
-        'rgba(16, 185, 129, 0.8)',
-        'rgba(245, 158, 11, 0.8)',
-        'rgba(239, 68, 68, 0.8)',
-        'rgba(139, 92, 246, 0.8)',
-      ],
+      backgroundColor: 'rgba(59, 130, 246, 0.8)',
+      borderColor: 'rgb(59, 130, 246)',
       borderWidth: 1,
     }]
   } : null;
@@ -293,6 +284,17 @@ const ReportsList: React.FC = () => {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-red-800 mb-2">Error Loading Reports</h3>
+          <p className="text-red-600">{error}</p>
         </div>
       </div>
     );

@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
 import { 
   Users, 
-  Plus, 
   Search, 
   Filter,
   Mail,
   Phone,
-  Calendar,
   MoreVertical,
   Shield,
   CheckCircle,
@@ -16,103 +14,15 @@ import {
   Trash2,
   UserPlus
 } from 'lucide-react';
+import { useTeamMembers } from '../../hooks/useRecruitmentData';
 import TeamMemberForm from '../forms/TeamMemberForm';
 
-interface TeamMember {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone?: string;
-  avatar?: string;
-  role: string;
-  department: string;
-  status: 'active' | 'inactive' | 'pending';
-  lastLogin?: Date;
-  joinedAt: Date;
-  permissions: string[];
-  reportsTo?: string;
-  directReports: number;
-}
+// TeamMember interface removed - now using real data from Supabase
 
-const mockTeamMembers: TeamMember[] = [
-  {
-    id: '1',
-    firstName: 'John',
-    lastName: 'Doe',
-    email: 'john@company.com',
-    phone: '+1 (555) 123-4567',
-    avatar: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2',
-    role: 'HR Manager',
-    department: 'Human Resources',
-    status: 'active',
-    lastLogin: new Date(Date.now() - 2 * 3600000),
-    joinedAt: new Date('2023-01-15'),
-    permissions: ['job_management', 'candidate_management', 'reporting', 'user_management'],
-    directReports: 3
-  },
-  {
-    id: '2',
-    firstName: 'Sarah',
-    lastName: 'Wilson',
-    email: 'sarah@company.com',
-    phone: '+1 (555) 234-5678',
-    avatar: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2',
-    role: 'Senior Recruiter',
-    department: 'Human Resources',
-    status: 'active',
-    lastLogin: new Date(Date.now() - 30 * 60000),
-    joinedAt: new Date('2023-03-20'),
-    permissions: ['job_management', 'candidate_management', 'interview_scheduling'],
-    reportsTo: '1',
-    directReports: 0
-  },
-  {
-    id: '3',
-    firstName: 'Mike',
-    lastName: 'Johnson',
-    email: 'mike@company.com',
-    avatar: 'https://images.pexels.com/photos/697509/pexels-photo-697509.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2',
-    role: 'Hiring Manager',
-    department: 'Engineering',
-    status: 'active',
-    lastLogin: new Date(Date.now() - 4 * 3600000),
-    joinedAt: new Date('2022-11-10'),
-    permissions: ['candidate_review', 'interview_participation', 'hiring_decisions'],
-    directReports: 1
-  },
-  {
-    id: '4',
-    firstName: 'Lisa',
-    lastName: 'Chen',
-    email: 'lisa@company.com',
-    phone: '+1 (555) 345-6789',
-    avatar: 'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2',
-    role: 'Recruiter',
-    department: 'Human Resources',
-    status: 'pending',
-    joinedAt: new Date('2024-01-20'),
-    permissions: ['candidate_management', 'interview_scheduling'],
-    reportsTo: '1',
-    directReports: 0
-  },
-  {
-    id: '5',
-    firstName: 'David',
-    lastName: 'Brown',
-    email: 'david@company.com',
-    role: 'Interviewer',
-    department: 'Marketing',
-    status: 'inactive',
-    lastLogin: new Date(Date.now() - 30 * 24 * 3600000),
-    joinedAt: new Date('2023-06-15'),
-    permissions: ['interview_participation'],
-    directReports: 0
-  }
-];
+// Mock data removed - now using real Supabase data
 
 const TeamList: React.FC = () => {
-  const [teamMembers] = useState<TeamMember[]>(mockTeamMembers);
+  const { teamMembers, isLoading, error } = useTeamMembers();
   const [searchQuery, setSearchQuery] = useState('');
   const [showMemberForm, setShowMemberForm] = useState(false);
   const [selectedRole, setSelectedRole] = useState<string>('all');
@@ -185,11 +95,43 @@ const TeamList: React.FC = () => {
     // In real app, this would call an API
   };
 
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="h-16 bg-gray-200 rounded"></div>
+              </div>
+            ))}
+          </div>
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <div className="h-64 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-red-800 mb-2">Error Loading Team Members</h3>
+          <p className="text-red-600">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
   const activeMembers = teamMembers.filter(m => m.status === 'active').length;
   const pendingMembers = teamMembers.filter(m => m.status === 'pending').length;
   const totalPermissions = [...new Set(teamMembers.flatMap(m => m.permissions))].length;
 
   return (
+    <>
     <div className="p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
@@ -410,7 +352,7 @@ const TeamList: React.FC = () => {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-wrap gap-1">
-                      {member.permissions.slice(0, 2).map((permission, index) => (
+                      {member.permissions.slice(0, 2).map((permission: string, index: number) => (
                         <span
                           key={index}
                           className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full"
@@ -456,13 +398,13 @@ const TeamList: React.FC = () => {
       )}
     </div>
 
-      {/* Team Member Form Modal */}
-      <TeamMemberForm
-        isOpen={showMemberForm}
-        onClose={() => setShowMemberForm(false)}
-        onSave={handleSaveMember}
-      />
-    </div>
+    {/* Team Member Form Modal */}
+    <TeamMemberForm
+      isOpen={showMemberForm}
+      onClose={() => setShowMemberForm(false)}
+      onSave={handleSaveMember}
+    />
+    </>
   );
 };
 

@@ -3,15 +3,8 @@ import {
   Search, 
   Filter, 
   Download, 
-  MoreVertical,
   User,
-  Calendar,
-  Clock,
-  CheckCircle,
-  XCircle,
-  ArrowRight,
-  Star,
-  MessageSquare
+  Plus
 } from 'lucide-react';
 import { useApplications } from '../../hooks/useRecruitmentData';
 import type { Application, FilterOptions } from '../../types';
@@ -46,22 +39,6 @@ const ApplicationsList: React.FC = () => {
     // In real app, this would call an API
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'new':
-        return 'bg-blue-100 text-blue-800';
-      case 'in-progress':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'rejected':
-        return 'bg-red-100 text-red-800';
-      case 'hired':
-        return 'bg-green-100 text-green-800';
-      case 'withdrawn':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
 
   if (error) {
     return (
@@ -74,6 +51,7 @@ const ApplicationsList: React.FC = () => {
   }
 
   return (
+    <>
     <div className="p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
@@ -245,13 +223,13 @@ const ApplicationsList: React.FC = () => {
       )}
     </div>
 
-      {/* Application Form Modal */}
-      <ApplicationForm
-        isOpen={showApplicationForm}
-        onClose={() => setShowApplicationForm(false)}
-        onSave={handleSaveApplication}
-      />
-    </div>
+    {/* Application Form Modal */}
+    <ApplicationForm
+      isOpen={showApplicationForm}
+      onClose={() => setShowApplicationForm(false)}
+      onSave={handleSaveApplication}
+    />
+    </>
   );
 };
 

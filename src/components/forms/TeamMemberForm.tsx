@@ -3,11 +3,8 @@ import {
   X, 
   Save, 
   User, 
-  Mail, 
-  Phone, 
   Shield,
   Building2,
-  Calendar,
   Upload,
   Plus,
   Trash2
@@ -69,7 +66,6 @@ const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ member, isOpen, onClose
     { id: 'reporting', label: 'Reporting', description: 'Access reports and analytics' },
     { id: 'user_management', label: 'User Management', description: 'Manage team members and permissions' },
     { id: 'client_management', label: 'Client Management', description: 'Manage client relationships' },
-    { id: 'communication', label: 'Communication', description: 'Send emails and communications to candidates' },
     { id: 'settings', label: 'Settings', description: 'Access system and company settings' }
   ];
 
@@ -92,7 +88,7 @@ const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ member, isOpen, onClose
     setFormData(prev => ({
       ...prev,
       permissions: prev.permissions.includes(permissionId)
-        ? prev.permissions.filter(p => p !== permissionId)
+        ? prev.permissions.filter((p: string) => p !== permissionId)
         : [...prev.permissions, permissionId]
     }));
   };
@@ -124,9 +120,9 @@ const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ member, isOpen, onClose
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[95vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-xl font-semibold text-gray-900">
             {member ? 'Edit Team Member' : 'Invite Team Member'}
           </h2>
@@ -161,8 +157,8 @@ const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ member, isOpen, onClose
           </nav>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col h-full">
-          <div className="flex-1 overflow-y-auto p-6">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
             {/* Basic Info Tab */}
             {activeTab === 'basic' && (
               <div className="space-y-6">
@@ -437,7 +433,7 @@ const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ member, isOpen, onClose
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end space-x-4 p-6 border-t border-gray-200 bg-gray-50">
+          <div className="flex items-center justify-end space-x-4 p-6 border-t border-gray-200 bg-gray-50 flex-shrink-0">
             <button
               type="button"
               onClick={onClose}
