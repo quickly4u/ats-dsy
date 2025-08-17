@@ -15,11 +15,13 @@ import { useJobs } from '../../hooks/useRecruitmentData';
 import type { Job, FilterOptions } from '../../types';
 import JobCard from './JobCard';
 import { Briefcase } from 'lucide-react';
+import JobForm from '../forms/JobForm';
 
 const JobsList: React.FC = () => {
   const [filters, setFilters] = useState<FilterOptions>({});
   const [showFilters, setShowFilters] = useState(false);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [showJobForm, setShowJobForm] = useState(false);
   const { jobs, isLoading, error } = useJobs(filters);
 
   const handleSearch = (search: string) => {
@@ -28,6 +30,11 @@ const JobsList: React.FC = () => {
 
   const handleStatusFilter = (status: string[]) => {
     setFilters(prev => ({ ...prev, status }));
+  };
+
+  const handleSaveJob = (jobData: Partial<Job>) => {
+    console.log('Saving job:', jobData);
+    // In real app, this would call an API
   };
 
   if (error) {
@@ -50,7 +57,10 @@ const JobsList: React.FC = () => {
             Manage and track all your job postings
           </p>
         </div>
-        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
+        <button 
+          onClick={() => setShowJobForm(true)}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+        >
           <Plus size={20} />
           <span>Create Job</span>
         </button>
@@ -175,12 +185,24 @@ const JobsList: React.FC = () => {
             Get started by creating your first job posting.
           </p>
           <div className="mt-6">
-            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+            <button 
+              onClick={() => setShowJobForm(true)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
               Create Job
             </button>
           </div>
         </div>
       )}
+    </div>
+  );
+
+      {/* Job Form Modal */}
+      <JobForm
+        isOpen={showJobForm}
+        onClose={() => setShowJobForm(false)}
+        onSave={handleSaveJob}
+      />
     </div>
   );
 };

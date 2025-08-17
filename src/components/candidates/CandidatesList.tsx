@@ -13,12 +13,14 @@ import {
 import { useCandidates } from '../../hooks/useRecruitmentData';
 import type { Candidate, FilterOptions } from '../../types';
 import CandidateCard from './CandidateCard';
+import CandidateForm from '../forms/CandidateForm';
 
 const CandidatesList: React.FC = () => {
   const [filters, setFilters] = useState<FilterOptions>({});
   const [showFilters, setShowFilters] = useState(false);
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [showCandidateForm, setShowCandidateForm] = useState(false);
   const { candidates, isLoading, error } = useCandidates(filters);
 
   const handleSearch = (search: string) => {
@@ -41,6 +43,11 @@ const CandidatesList: React.FC = () => {
     } else {
       setSelectedCandidates(new Set(candidates.map(c => c.id)));
     }
+  };
+
+  const handleSaveCandidate = (candidateData: Partial<Candidate>) => {
+    console.log('Saving candidate:', candidateData);
+    // In real app, this would call an API
   };
 
   if (error) {
@@ -68,7 +75,10 @@ const CandidatesList: React.FC = () => {
             <Download size={20} />
             <span>Export</span>
           </button>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
+          <button 
+            onClick={() => setShowCandidateForm(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+          >
             <Plus size={20} />
             <span>Add Candidate</span>
           </button>
@@ -243,12 +253,24 @@ const CandidatesList: React.FC = () => {
             Start building your talent pool by adding candidates.
           </p>
           <div className="mt-6">
-            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+            <button 
+              onClick={() => setShowCandidateForm(true)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
               Add Candidate
             </button>
           </div>
         </div>
       )}
+    </div>
+  );
+
+      {/* Candidate Form Modal */}
+      <CandidateForm
+        isOpen={showCandidateForm}
+        onClose={() => setShowCandidateForm(false)}
+        onSave={handleSaveCandidate}
+      />
     </div>
   );
 };

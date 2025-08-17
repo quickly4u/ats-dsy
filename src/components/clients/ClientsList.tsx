@@ -19,6 +19,7 @@ import {
   Clock
 } from 'lucide-react';
 import type { Client } from '../../types';
+import ClientForm from '../forms/ClientForm';
 
 const mockClients: Client[] = [
   {
@@ -117,6 +118,7 @@ const mockClients: Client[] = [
 const ClientsList: React.FC = () => {
   const [clients] = useState<Client[]>(mockClients);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showClientForm, setShowClientForm] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedIndustry, setSelectedIndustry] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
@@ -159,6 +161,11 @@ const ClientsList: React.FC = () => {
     return matchesSearch && matchesStatus && matchesIndustry;
   });
 
+  const handleSaveClient = (clientData: Partial<Client>) => {
+    console.log('Saving client:', clientData);
+    // In real app, this would call an API
+  };
+
   const totalClients = clients.length;
   const activeClients = clients.filter(c => c.status === 'active').length;
   const totalActiveJobs = clients.reduce((sum, c) => sum + c.activeJobs, 0);
@@ -179,7 +186,10 @@ const ClientsList: React.FC = () => {
             <Users size={20} />
             <span>Manage SPOCs</span>
           </button>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
+          <button 
+            onClick={() => setShowClientForm(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+          >
             <Plus size={20} />
             <span>Add Client</span>
           </button>
@@ -436,6 +446,14 @@ const ClientsList: React.FC = () => {
           </p>
         </div>
       )}
+    </div>
+
+      {/* Client Form Modal */}
+      <ClientForm
+        isOpen={showClientForm}
+        onClose={() => setShowClientForm(false)}
+        onSave={handleSaveClient}
+      />
     </div>
   );
 };
