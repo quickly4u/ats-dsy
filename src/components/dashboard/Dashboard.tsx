@@ -1,11 +1,9 @@
 import React from 'react';
 import { 
-  Users, 
   Briefcase, 
   Calendar, 
-  TrendingUp, 
   Clock, 
-  DollarSign,
+  TrendingUp,
   UserPlus,
   Target
 } from 'lucide-react';
@@ -103,7 +101,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Performance Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
         <MetricCard
           title="Avg. Time to Hire"
           value={`${metrics?.averageTimeToHire || 0} days`}
@@ -111,14 +109,6 @@ const Dashboard: React.FC = () => {
           changeType="positive"
           icon={Clock}
           color="indigo"
-        />
-        <MetricCard
-          title="Cost per Hire"
-          value={`$${metrics?.costPerHire?.toLocaleString() || 0}`}
-          change={-8}
-          changeType="positive"
-          icon={DollarSign}
-          color="green"
         />
         <MetricCard
           title="Conversion Rate"
