@@ -21,13 +21,15 @@ import {
 import type { Client } from '../../types';
 import { useClients } from '../../hooks/useRecruitmentData';
 import ClientForm from '../forms/ClientForm';
+import { supabase, getCurrentUserCompanyId } from '../../lib/supabase';
 
 // Mock data removed - now using real Supabase data
 
 const ClientsList: React.FC = () => {
-  const { clients, isLoading, error } = useClients();
+  const { clients, isLoading, error, refetch } = useClients();
   const [searchQuery, setSearchQuery] = useState('');
   const [showClientForm, setShowClientForm] = useState(false);
+  const [editingClient, setEditingClient] = useState<Client | undefined>(undefined);
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedIndustry, setSelectedIndustry] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
@@ -70,9 +72,66 @@ const ClientsList: React.FC = () => {
     return matchesSearch && matchesStatus && matchesIndustry;
   });
 
-  const handleSaveClient = (clientData: Partial<Client>) => {
-    console.log('Saving client:', clientData);
-    // In real app, this would call an API
+  const handleSaveClient = async (clientData: Partial<Client>): Promise<boolean> => {
+    try {
+      const formatDate = (d?: Date) => (d ? new Date(d).toISOString().slice(0, 10) : null);
+
+      // Get current user's company_id
+      const companyId = await getCurrentUserCompanyId();
+      if (!companyId) {
+        alert('Unable to determine your company. Please log in again.');
+        return false;
+      }
+
+      const payload: Record<string, any> = {
+        company_id: companyId,
+        name: clientData.name ?? '',
+        company_name: clientData.companyName ?? '',
+        industry: clientData.industry ?? null,
+        website: clientData.website ?? null,
+        description: clientData.description ?? null,
+        status: clientData.status ?? 'active',
+        logo: clientData.logo ?? null,
+        contact_email: clientData.contactInfo?.email ?? null,
+        contact_phone: clientData.contactInfo?.phone ?? null,
+        address_street: clientData.address?.street ?? null,
+        address_city: clientData.address?.city ?? null,
+        address_state: clientData.address?.state ?? null,
+        address_country: clientData.address?.country ?? null,
+        address_zip: clientData.address?.zipCode ?? null,
+        contract_start_date: formatDate(clientData.contractDetails?.startDate),
+        contract_end_date: formatDate(clientData.contractDetails?.endDate),
+        contract_type: clientData.contractDetails?.contractType ?? null,
+        payment_terms: clientData.contractDetails?.paymentTerms ?? null,
+      };
+
+      let error = null as any;
+      if (clientData.id) {
+        const { error: updateError } = await supabase
+          .from('clients')
+          .update(payload)
+          .eq('id', clientData.id);
+        error = updateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from('clients')
+          .insert(payload);
+        error = insertError;
+      }
+
+      if (error) {
+        console.error('Failed to save client:', error);
+        alert(`Failed to save client: ${error.message}`);
+        return false;
+      }
+
+      refetch();
+      return true;
+    } catch (e: any) {
+      console.error('Unexpected error saving client:', e);
+      alert(`Unexpected error: ${e.message || e}`);
+      return false;
+    }
   };
 
   if (isLoading) {
@@ -132,7 +191,7 @@ const ClientsList: React.FC = () => {
             <span>Manage SPOCs</span>
           </button>
           <button 
-            onClick={() => setShowClientForm(true)}
+            onClick={() => { setEditingClient(undefined); setShowClientForm(true); }}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
           >
             <Plus size={20} />
@@ -365,7 +424,10 @@ const ClientsList: React.FC = () => {
                   <button className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                     <Eye size={16} />
                   </button>
-                  <button className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
+                  <button 
+                    className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                    onClick={() => { setEditingClient(client); setShowClientForm(true); }}
+                  >
                     <Edit size={16} />
                   </button>
                   <button className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
@@ -395,8 +457,9 @@ const ClientsList: React.FC = () => {
 
     {/* Client Form Modal */}
     <ClientForm
+      client={editingClient}
       isOpen={showClientForm}
-      onClose={() => setShowClientForm(false)}
+      onClose={() => { setShowClientForm(false); setEditingClient(undefined); }}
       onSave={handleSaveClient}
     />
     </>

@@ -801,6 +801,7 @@ export const useClients = (filters?: FilterOptions) => {
   const [clients, setClients] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     const fetchClients = async () => {
@@ -818,6 +819,17 @@ export const useClients = (filters?: FilterOptions) => {
             logo,
             description,
             status,
+            contact_email,
+            contact_phone,
+            address_street,
+            address_city,
+            address_state,
+            address_country,
+            address_zip,
+            contract_start_date,
+            contract_end_date,
+            contract_type,
+            payment_terms,
             created_at,
             updated_at
           `)
@@ -831,17 +843,31 @@ export const useClients = (filters?: FilterOptions) => {
           id: c.id,
           name: c.name,
           companyName: c.company_name,
-          industry: c.industry || 'Unknown',
-          website: c.website,
-          logo: c.logo,
-          description: c.description,
-          address: { street: '', city: '', state: '', country: '', zipCode: '' }, // Would need separate address table
-          contactInfo: { email: '', phone: '' }, // Would need separate contact table
-          contractDetails: { startDate: new Date(), contractType: 'retainer', paymentTerms: '' },
-          status: c.status || 'active',
-          totalJobs: 0, // Would need count query
-          activeJobs: 0, // Would need count query
-          successfulPlacements: 0, // Would need count query
+          industry: c.industry || '',
+          website: c.website || undefined,
+          logo: c.logo || undefined,
+          description: c.description || undefined,
+          status: (c.status ?? 'active'),
+          totalJobs: 0,
+          activeJobs: 0,
+          successfulPlacements: 0,
+          address: {
+            street: c.address_street || '',
+            city: c.address_city || '',
+            state: c.address_state || '',
+            country: c.address_country || '',
+            zipCode: c.address_zip || ''
+          },
+          contactInfo: {
+            email: c.contact_email || '',
+            phone: c.contact_phone || ''
+          },
+          contractDetails: {
+            startDate: c.contract_start_date ? new Date(c.contract_start_date) : new Date(),
+            endDate: c.contract_end_date ? new Date(c.contract_end_date) : undefined,
+            contractType: (c.contract_type || 'retainer'),
+            paymentTerms: c.payment_terms || 'Net 30'
+          },
           createdAt: c.created_at ? new Date(c.created_at) : new Date(),
           updatedAt: c.updated_at ? new Date(c.updated_at) : new Date(),
         }));
@@ -867,9 +893,11 @@ export const useClients = (filters?: FilterOptions) => {
     };
 
     fetchClients();
-  }, [filters]);
+  }, [filters, reloadToken]);
 
-  return { clients, isLoading, error };
+  const refetch = () => setReloadToken((t) => t + 1);
+
+  return { clients, isLoading, error, refetch };
 };
 
 export const useTeamMembers = (filters?: FilterOptions) => {

@@ -1,27 +1,56 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
-const LoginForm: React.FC = () => {
-  const [email, setEmail] = useState('demo@example.com');
-  const [password, setPassword] = useState('password123');
+interface LoginFormProps {
+  onSwitchToSignup?: () => void;
+}
+
+const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   
-  const { login } = useAuth();
+  const { login, resetPassword } = useAuth();
+
+  // Ensure no persisted demo values linger and discourage autofill
+  useEffect(() => {
+    setEmail('');
+    setPassword('');
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    setInfo(null);
 
     try {
       await login(email, password);
     } catch (err) {
-      setError('Invalid credentials. Please try again.');
+      const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
+      setError(message);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    setError(null);
+    setInfo(null);
+    try {
+      if (!email) {
+        setError('Enter your email to reset your password.');
+        return;
+      }
+      await resetPassword(email);
+      setInfo('If an account exists for this email, a password reset link has been sent.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not send reset email.';
+      setError(message);
     }
   };
 
@@ -42,7 +71,10 @@ const LoginForm: React.FC = () => {
         </div>
 
         {/* Form */}
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit} autoComplete="off">
+          {/* Hidden inputs to defeat aggressive browser autofill */}
+          <input type="text" name="prevent_username" autoComplete="username" className="hidden" value="" readOnly />
+          <input type="password" name="prevent_password" autoComplete="new-password" className="hidden" value="" readOnly />
           <div className="space-y-4">
             {/* Email Field */}
             <div>
@@ -57,7 +89,7 @@ const LoginForm: React.FC = () => {
                   id="email"
                   name="email"
                   type="email"
-                  autoComplete="email"
+                  autoComplete="off"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -80,7 +112,7 @@ const LoginForm: React.FC = () => {
                   id="password"
                   name="password"
                   type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -102,17 +134,16 @@ const LoginForm: React.FC = () => {
 
           {/* Error Message */}
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3" role="alert" aria-live="polite">
               <p className="text-sm text-red-600">{error}</p>
             </div>
           )}
-
-          {/* Demo Notice */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <p className="text-sm text-blue-700">
-              <strong>Demo Account:</strong> Use the pre-filled credentials to explore the ATS system
-            </p>
-          </div>
+          {/* Info Message */}
+          {info && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3" role="status" aria-live="polite">
+              <p className="text-sm text-green-700">{info}</p>
+            </div>
+          )}
 
           {/* Submit Button */}
           <div>
@@ -136,6 +167,7 @@ const LoginForm: React.FC = () => {
           <div className="flex items-center justify-between text-sm">
             <button
               type="button"
+              onClick={handleResetPassword}
               className="text-blue-600 hover:text-blue-500 font-medium"
             >
               Forgot your password?
@@ -144,9 +176,10 @@ const LoginForm: React.FC = () => {
               Need an account?{' '}
               <button
                 type="button"
+                onClick={onSwitchToSignup}
                 className="text-blue-600 hover:text-blue-500 font-medium"
               >
-                Contact Sales
+                Create account
               </button>
             </span>
           </div>

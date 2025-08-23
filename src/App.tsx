@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from './hooks/useAuth';
 import AuthProvider from './components/auth/AuthProvider';
 import LoginForm from './components/auth/LoginForm';
+import SignupForm from './components/auth/SignupForm';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import Dashboard from './components/dashboard/Dashboard';
@@ -19,6 +20,7 @@ import SPOCManagement from './components/clients/SPOCManagement';
 const AppContent: React.FC = () => {
   const { isLoading, isAuthenticated } = useAuth();
   const [activeSection, setActiveSection] = useState('dashboard');
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
 
   if (isLoading) {
     return (
@@ -32,7 +34,11 @@ const AppContent: React.FC = () => {
   }
 
   if (!isAuthenticated) {
-    return <LoginForm />;
+    return authMode === 'login' ? (
+      <LoginForm onSwitchToSignup={() => setAuthMode('signup')} />
+    ) : (
+      <SignupForm onSwitchToLogin={() => setAuthMode('login')} />
+    );
   }
 
   const renderMainContent = () => {

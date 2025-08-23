@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { 
   X, 
   Save, 
@@ -8,6 +8,7 @@ import {
   Upload
 } from 'lucide-react';
 import type { Client } from '../../types';
+import { supabase } from '../../lib/supabase';
 
 type ClientStatus = 'active' | 'inactive' | 'pending';
 type ContractType = 'retainer' | 'contingency' | 'hybrid';
@@ -39,7 +40,7 @@ interface ClientFormProps {
   client?: Client;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (clientData: Partial<Client>) => void;
+  onSave: (clientData: Partial<Client>) => Promise<boolean>;
 }
 
 const ClientForm: React.FC<ClientFormProps> = ({ client, isOpen, onClose, onSave }) => {
@@ -69,33 +70,69 @@ const ClientForm: React.FC<ClientFormProps> = ({ client, isOpen, onClose, onSave
   });
 
   const [activeTab, setActiveTab] = useState('basic');
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const clientData = {
-      ...formData,
-      address: {
-        street: formData.street,
-        city: formData.city,
-        state: formData.state,
-        country: formData.country,
-        zipCode: formData.zipCode
-      },
-      contactInfo: {
-        email: formData.email,
-        phone: formData.phone
-      },
-      contractDetails: {
-        contractType: formData.contractType as 'retainer' | 'contingency' | 'hybrid',
-        paymentTerms: formData.paymentTerms,
-        startDate: formData.startDate ? new Date(formData.startDate) : new Date(),
-        endDate: formData.endDate ? new Date(formData.endDate) : undefined
+    setIsSaving(true);
+    setErrorMsg(null);
+
+    try {
+      let logoUrl: string | undefined = client?.logo;
+      if (logoFile) {
+        const path = `logos/${Date.now()}-${logoFile.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from('client-logos')
+          .upload(path, logoFile, { cacheControl: '3600', upsert: false });
+        if (uploadError) {
+          throw new Error(`Logo upload failed: ${uploadError.message}`);
+        }
+        const { data } = supabase.storage.from('client-logos').getPublicUrl(path);
+        logoUrl = data.publicUrl;
       }
-    };
-    
-    onSave(clientData);
-    onClose();
+
+      const clientData: Partial<Client> = {
+        id: client?.id,
+        name: formData.name,
+        companyName: formData.companyName,
+        industry: formData.industry,
+        website: formData.website || undefined,
+        description: formData.description || undefined,
+        status: formData.status,
+        logo: logoUrl,
+        address: {
+          street: formData.street,
+          city: formData.city,
+          state: formData.state,
+          country: formData.country,
+          zipCode: formData.zipCode
+        },
+        contactInfo: {
+          email: formData.email,
+          phone: formData.phone
+        },
+        contractDetails: {
+          contractType: formData.contractType as 'retainer' | 'contingency' | 'hybrid',
+          paymentTerms: formData.paymentTerms,
+          startDate: formData.startDate ? new Date(formData.startDate) : new Date(),
+          endDate: formData.endDate ? new Date(formData.endDate) : undefined
+        }
+      };
+
+      const ok = await onSave(clientData);
+      if (ok) {
+        onClose();
+      } else {
+        setErrorMsg('Failed to save client.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Unexpected error saving client');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -121,6 +158,14 @@ const ClientForm: React.FC<ClientFormProps> = ({ client, isOpen, onClose, onSave
             <X size={20} />
           </button>
         </div>
+
+        {errorMsg && (
+          <div className="px-6 pt-4">
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
+              {errorMsg}
+            </div>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="border-b border-gray-200">
@@ -239,13 +284,26 @@ const ClientForm: React.FC<ClientFormProps> = ({ client, isOpen, onClose, onSave
                   </label>
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                     <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                    <div className="mt-4">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg"
+                      className="hidden"
+                      onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+                    />
+                    <div className="mt-4 flex items-center justify-center gap-3">
                       <button
                         type="button"
+                        onClick={() => fileInputRef.current?.click()}
                         className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
                       >
-                        Upload Logo
+                        Select Logo
                       </button>
+                      {logoFile && (
+                        <span className="text-sm text-gray-600 truncate max-w-[60%]" title={logoFile.name}>
+                          {logoFile.name}
+                        </span>
+                      )}
                     </div>
                     <p className="mt-2 text-sm text-gray-500">
                       PNG, JPG up to 2MB
@@ -502,10 +560,11 @@ const ClientForm: React.FC<ClientFormProps> = ({ client, isOpen, onClose, onSave
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+              disabled={isSaving}
+              className={`px-4 py-2 rounded-lg flex items-center space-x-2 text-white ${isSaving ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
             >
               <Save size={16} />
-              <span>{client ? 'Update Client' : 'Add Client'}</span>
+              <span>{isSaving ? 'Saving...' : (client ? 'Update Client' : 'Add Client')}</span>
             </button>
           </div>
         </form>

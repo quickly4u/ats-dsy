@@ -1,28 +1,43 @@
 import React, { useState } from 'react';
-import { 
-  X, 
-  Save, 
-  User, 
-  Mail, 
-  Phone, 
-  Building2, 
-  Linkedin,
+import {
+  X,
+  Save,
   Star,
-  Users,
-  FileText
 } from 'lucide-react';
-import type { ExternalSPOC, InternalSPOC, Client, User as UserType } from '../../types';
+import type { ExternalSPOC, InternalSPOC } from '../../types';
+
+// Form data types used locally by this component
+type ExternalSPOCFormData = {
+  clientId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  designation: string;
+  department?: string;
+  isPrimary: boolean;
+  linkedinUrl?: string;
+  notes?: string;
+  isActive: boolean;
+};
+
+type InternalSPOCFormData = {
+  userId: string;
+  level: 'primary' | 'secondary';
+  clientIds: string[];
+  isActive: boolean;
+};
 
 interface SPOCFormProps {
   spoc?: ExternalSPOC | InternalSPOC;
   type: 'external' | 'internal';
   isOpen: boolean;
   onClose: () => void;
-  onSave: (spocData: any) => void;
+  onSave: (spocData: ExternalSPOCFormData | InternalSPOCFormData) => void;
 }
 
 const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave }) => {
-  const [formData, setFormData] = useState(() => {
+  const [formData, setFormData] = useState<ExternalSPOCFormData | InternalSPOCFormData>(() => {
     if (type === 'external' && spoc && 'clientId' in spoc) {
       return {
         clientId: spoc.clientId || '',
@@ -66,6 +81,13 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
     }
   });
 
+  // Typed helpers to update state safely without using `any`
+  const setExternal = (patch: Partial<ExternalSPOCFormData>) =>
+    setFormData(prev => ({ ...(prev as ExternalSPOCFormData), ...patch }));
+
+  const setInternal = (patch: Partial<InternalSPOCFormData>) =>
+    setFormData(prev => ({ ...(prev as InternalSPOCFormData), ...patch }));
+
   // Mock data - in real app, these would come from API
   const mockClients = [
     { id: '1', name: 'TechCorp Solutions' },
@@ -87,12 +109,13 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
 
   const handleClientSelection = (clientId: string, checked: boolean) => {
     if (type === 'internal') {
-      setFormData(prev => ({
-        ...prev,
-        clientIds: checked 
-          ? [...prev.clientIds, clientId]
-          : prev.clientIds.filter(id => id !== clientId)
-      }));
+      setFormData(prev => {
+        const p = prev as InternalSPOCFormData;
+        const nextIds = checked
+          ? [...(p.clientIds ?? []), clientId]
+          : (p.clientIds ?? []).filter((id) => id !== clientId);
+        return { ...p, clientIds: nextIds };
+      });
     }
   };
 
@@ -125,8 +148,8 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
                   </label>
                   <select
                     required
-                    value={formData.clientId}
-                    onChange={(e) => setFormData(prev => ({ ...prev, clientId: e.target.value }))}
+                    value={(formData as ExternalSPOCFormData).clientId}
+                    onChange={(e) => setExternal({ clientId: e.target.value })}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Client</option>
@@ -144,8 +167,8 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
                     <input
                       type="text"
                       required
-                      value={formData.firstName}
-                      onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
+                      value={(formData as ExternalSPOCFormData).firstName}
+                      onChange={(e) => setExternal({ firstName: e.target.value })}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="John"
                     />
@@ -158,8 +181,8 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
                     <input
                       type="text"
                       required
-                      value={formData.lastName}
-                      onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
+                      value={(formData as ExternalSPOCFormData).lastName}
+                      onChange={(e) => setExternal({ lastName: e.target.value })}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="Doe"
                     />
@@ -172,8 +195,8 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
                     <input
                       type="email"
                       required
-                      value={formData.email}
-                      onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                      value={(formData as ExternalSPOCFormData).email}
+                      onChange={(e) => setExternal({ email: e.target.value })}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="john.doe@client.com"
                     />
@@ -185,8 +208,8 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
                     </label>
                     <input
                       type="tel"
-                      value={formData.phone}
-                      onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                      value={(formData as ExternalSPOCFormData).phone ?? ''}
+                      onChange={(e) => setExternal({ phone: e.target.value })}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="+1 (555) 123-4567"
                     />
@@ -199,8 +222,8 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
                     <input
                       type="text"
                       required
-                      value={formData.designation}
-                      onChange={(e) => setFormData(prev => ({ ...prev, designation: e.target.value }))}
+                      value={(formData as ExternalSPOCFormData).designation}
+                      onChange={(e) => setExternal({ designation: e.target.value })}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="VP of Engineering"
                     />
@@ -211,8 +234,8 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
                       Department
                     </label>
                     <select
-                      value={formData.department}
-                      onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
+                      value={(formData as ExternalSPOCFormData).department ?? ''}
+                      onChange={(e) => setExternal({ department: e.target.value })}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">Select Department</option>
@@ -234,8 +257,8 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
                   </label>
                   <input
                     type="url"
-                    value={formData.linkedinUrl}
-                    onChange={(e) => setFormData(prev => ({ ...prev, linkedinUrl: e.target.value }))}
+                    value={(formData as ExternalSPOCFormData).linkedinUrl ?? ''}
+                    onChange={(e) => setExternal({ linkedinUrl: e.target.value })}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="https://linkedin.com/in/johndoe"
                   />
@@ -247,8 +270,8 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
                   </label>
                   <textarea
                     rows={3}
-                    value={formData.notes}
-                    onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                    value={(formData as ExternalSPOCFormData).notes ?? ''}
+                    onChange={(e) => setExternal({ notes: e.target.value })}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Additional notes about this SPOC..."
                   />
@@ -258,8 +281,8 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
                   <label className="flex items-center space-x-2">
                     <input
                       type="checkbox"
-                      checked={formData.isPrimary}
-                      onChange={(e) => setFormData(prev => ({ ...prev, isPrimary: e.target.checked }))}
+                      checked={(formData as ExternalSPOCFormData).isPrimary}
+                      onChange={(e) => setExternal({ isPrimary: e.target.checked })}
                       className="rounded border-gray-300"
                     />
                     <span className="text-sm text-gray-700 flex items-center">
@@ -271,8 +294,8 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
                   <label className="flex items-center space-x-2">
                     <input
                       type="checkbox"
-                      checked={formData.isActive}
-                      onChange={(e) => setFormData(prev => ({ ...prev, isActive: e.target.checked }))}
+                      checked={(formData as ExternalSPOCFormData).isActive}
+                      onChange={(e) => setExternal({ isActive: e.target.checked })}
                       className="rounded border-gray-300"
                     />
                     <span className="text-sm text-gray-700">Active</span>
@@ -288,8 +311,8 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
                   </label>
                   <select
                     required
-                    value={formData.userId}
-                    onChange={(e) => setFormData(prev => ({ ...prev, userId: e.target.value }))}
+                    value={(formData as InternalSPOCFormData).userId}
+                    onChange={(e) => setInternal({ userId: e.target.value })}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Team Member</option>
@@ -307,15 +330,15 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
                   </label>
                   <select
                     required
-                    value={formData.level}
-                    onChange={(e) => setFormData(prev => ({ ...prev, level: e.target.value }))}
+                    value={(formData as InternalSPOCFormData).level}
+                    onChange={(e) => setInternal({ level: e.target.value as 'primary' | 'secondary' })}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="primary">Primary SPOC</option>
                     <option value="secondary">Secondary SPOC</option>
                   </select>
                   <p className="mt-1 text-sm text-gray-500">
-                    {formData.level === 'primary' 
+                    {(formData as InternalSPOCFormData).level === 'primary' 
                       ? 'Primary contact responsible for client relationship management'
                       : 'Secondary contact providing backup support'
                     }
@@ -332,7 +355,7 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
                         <label key={client.id} className="flex items-center space-x-2">
                           <input
                             type="checkbox"
-                            checked={formData.clientIds.includes(client.id)}
+                            checked={((formData as InternalSPOCFormData).clientIds ?? []).includes(client.id)}
                             onChange={(e) => handleClientSelection(client.id, e.target.checked)}
                             className="rounded border-gray-300"
                           />
@@ -350,24 +373,24 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
                   <label className="flex items-center space-x-2">
                     <input
                       type="checkbox"
-                      checked={formData.isActive}
-                      onChange={(e) => setFormData(prev => ({ ...prev, isActive: e.target.checked }))}
+                      checked={(formData as InternalSPOCFormData).isActive}
+                      onChange={(e) => setInternal({ isActive: e.target.checked })}
                       className="rounded border-gray-300"
                     />
                     <span className="text-sm text-gray-700">Active</span>
                   </label>
                 </div>
 
-                {formData.clientIds.length > 0 && (
+                {((formData as InternalSPOCFormData).clientIds ?? []).length > 0 && (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <h4 className="font-medium text-blue-900 mb-2">Assignment Summary</h4>
                     <div className="text-sm text-blue-800">
-                      <p><strong>Level:</strong> {formData.level.charAt(0).toUpperCase() + formData.level.slice(1)} SPOC</p>
-                      <p><strong>Clients:</strong> {formData.clientIds.length} assigned</p>
+                      <p><strong>Level:</strong> {(formData as InternalSPOCFormData).level.charAt(0).toUpperCase() + (formData as InternalSPOCFormData).level.slice(1)} SPOC</p>
+                      <p><strong>Clients:</strong> {((formData as InternalSPOCFormData).clientIds ?? []).length} assigned</p>
                       <div className="mt-2">
                         <strong>Client List:</strong>
                         <ul className="list-disc list-inside mt-1">
-                          {formData.clientIds.map(clientId => {
+                          {((formData as InternalSPOCFormData).clientIds ?? []).map((clientId) => {
                             const client = mockClients.find(c => c.id === clientId);
                             return client ? <li key={clientId}>{client.name}</li> : null;
                           })}
