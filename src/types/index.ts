@@ -254,6 +254,12 @@ export interface Client {
     endDate?: Date;
     contractType: 'retainer' | 'contingency' | 'hybrid';
     paymentTerms: string;
+    isExclusive: boolean;
+    includesBackgroundCheck: boolean;
+    hasReplacementGuarantee: boolean;
+    replacementGuaranteeDays?: number;
+    hasConfidentialityAgreement: boolean;
+    additionalTerms?: string;
   };
   status: 'active' | 'inactive' | 'pending';
   totalJobs: number;

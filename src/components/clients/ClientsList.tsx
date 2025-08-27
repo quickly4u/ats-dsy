@@ -16,12 +16,14 @@ import {
   Eye,
   CheckCircle,
   XCircle,
-  Clock
+  Clock,
+  X
 } from 'lucide-react';
 import type { Client } from '../../types';
 import { useClients } from '../../hooks/useRecruitmentData';
 import ClientForm from '../forms/ClientForm';
 import { supabase, getCurrentUserCompanyId } from '../../lib/supabase';
+import SPOCManagement from './SPOCManagement';
 
 // Mock data removed - now using real Supabase data
 
@@ -33,6 +35,8 @@ const ClientsList: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedIndustry, setSelectedIndustry] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [showSPOCManager, setShowSPOCManager] = useState(false);
+  const [spocInitialClientId, setSpocInitialClientId] = useState<string | undefined>(undefined);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -83,6 +87,22 @@ const ClientsList: React.FC = () => {
         return false;
       }
 
+      // Prepare contract_details JSON payload
+      const contractDetails = {
+        contractType: clientData.contractDetails?.contractType ?? null,
+        paymentTerms: clientData.contractDetails?.paymentTerms ?? null,
+        startDate: formatDate(clientData.contractDetails?.startDate),
+        endDate: formatDate(clientData.contractDetails?.endDate) || null,
+        isExclusive: clientData.contractDetails?.isExclusive ?? false,
+        includesBackgroundCheck: clientData.contractDetails?.includesBackgroundCheck ?? false,
+        hasReplacementGuarantee: clientData.contractDetails?.hasReplacementGuarantee ?? false,
+        replacementGuaranteeDays: typeof clientData.contractDetails?.replacementGuaranteeDays === 'number'
+          ? clientData.contractDetails?.replacementGuaranteeDays
+          : (clientData.contractDetails?.replacementGuaranteeDays ?? null),
+        hasConfidentialityAgreement: clientData.contractDetails?.hasConfidentialityAgreement ?? false,
+        additionalTerms: clientData.contractDetails?.additionalTerms ?? null,
+      };
+
       const payload: Record<string, any> = {
         company_id: companyId,
         name: clientData.name ?? '',
@@ -99,10 +119,8 @@ const ClientsList: React.FC = () => {
         address_state: clientData.address?.state ?? null,
         address_country: clientData.address?.country ?? null,
         address_zip: clientData.address?.zipCode ?? null,
-        contract_start_date: formatDate(clientData.contractDetails?.startDate),
-        contract_end_date: formatDate(clientData.contractDetails?.endDate),
-        contract_type: clientData.contractDetails?.contractType ?? null,
-        payment_terms: clientData.contractDetails?.paymentTerms ?? null,
+        // Store all contract details inside JSONB
+        contract_details: contractDetails,
       };
 
       let error = null as any;
@@ -186,7 +204,10 @@ const ClientsList: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center space-x-3">
-          <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center space-x-2">
+          <button 
+            onClick={() => { setSpocInitialClientId(undefined); setShowSPOCManager(true); }}
+            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center space-x-2"
+          >
             <Users size={20} />
             <span>Manage SPOCs</span>
           </button>
@@ -430,7 +451,10 @@ const ClientsList: React.FC = () => {
                   >
                     <Edit size={16} />
                   </button>
-                  <button className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+                  <button 
+                    className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                    onClick={() => { setSpocInitialClientId(client.id); setShowSPOCManager(true); }}
+                  >
                     <Users size={16} />
                   </button>
                 </div>
@@ -462,6 +486,27 @@ const ClientsList: React.FC = () => {
       onClose={() => { setShowClientForm(false); setEditingClient(undefined); }}
       onSave={handleSaveClient}
     />
+
+    {/* SPOC Management Overlay */}
+    {showSPOCManager && (
+      <div className="fixed inset-0 z-50">
+        <div className="absolute inset-0 bg-black bg-opacity-40" onClick={() => { setShowSPOCManager(false); setSpocInitialClientId(undefined); }} />
+        <div className="absolute inset-0 bg-white flex flex-col">
+          <div className="flex items-center justify-between p-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">Manage SPOCs</h2>
+            <button
+              onClick={() => { setShowSPOCManager(false); setSpocInitialClientId(undefined); }}
+              className="p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-auto">
+            <SPOCManagement initialClientId={spocInitialClientId} />
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 };

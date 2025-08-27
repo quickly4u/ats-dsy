@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
   Users, 
   Plus, 
@@ -9,113 +9,68 @@ import {
   Building2,
   User,
   UserCheck,
-  Star,
   MoreVertical,
   Edit,
   Trash2,
   MessageSquare,
   Linkedin,
   CheckCircle,
-  XCircle
+  Star,
 } from 'lucide-react';
-import type { ExternalSPOC, InternalSPOC, Client, User as UserType } from '../../types';
 import SPOCForm from '../forms/SPOCForm';
+import { useClients } from '../../hooks/useRecruitmentData';
+import { useExternalSpocs, useInternalSpocs } from '../../hooks/useSpocs';
+import { supabase } from '../../lib/supabase';
 
-const mockClients: Client[] = [
-  {
-    id: '1',
-    name: 'TechCorp Solutions',
-    companyName: 'TechCorp Solutions Inc.',
-    industry: 'Technology',
-    contactInfo: { email: 'contact@techcorp.com', phone: '+1 (555) 123-4567' },
-    address: { street: '123 Tech St', city: 'San Francisco', state: 'CA', country: 'US', zipCode: '94105' },
-    contractDetails: { startDate: new Date(), contractType: 'retainer', paymentTerms: 'Net 30' },
-    status: 'active',
-    totalJobs: 15,
-    activeJobs: 8,
-    successfulPlacements: 12,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  }
-];
+interface SPOCManagementProps {
+  initialTab?: 'external' | 'internal';
+  initialClientId?: string;
+}
 
-const mockExternalSPOCs: ExternalSPOC[] = [
-  {
-    id: '1',
-    clientId: '1',
-    client: mockClients[0],
-    firstName: 'Sarah',
-    lastName: 'Johnson',
-    email: 'sarah.johnson@techcorp.com',
-    phone: '+1 (555) 123-4567',
-    designation: 'VP of Engineering',
-    department: 'Engineering',
-    isPrimary: true,
-    avatar: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2',
-    linkedinUrl: 'https://linkedin.com/in/sarahjohnson',
-    notes: 'Primary contact for all technical roles. Prefers email communication.',
-    isActive: true,
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-15')
-  },
-  {
-    id: '2',
-    clientId: '1',
-    client: mockClients[0],
-    firstName: 'Michael',
-    lastName: 'Chen',
-    email: 'michael.chen@techcorp.com',
-    phone: '+1 (555) 123-4568',
-    designation: 'HR Director',
-    department: 'Human Resources',
-    isPrimary: false,
-    avatar: 'https://images.pexels.com/photos/697509/pexels-photo-697509.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2',
-    notes: 'Handles HR policies and onboarding processes.',
-    isActive: true,
-    createdAt: new Date('2024-01-05'),
-    updatedAt: new Date('2024-01-20')
-  }
-];
+// Local type for team members list in the form
+type TeamMemberOption = { id: string; firstName: string; lastName: string; email: string };
 
-const mockUsers: UserType[] = [
-  {
-    id: '1',
-    email: 'john@company.com',
-    firstName: 'John',
-    lastName: 'Doe',
-    avatar: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2',
-    company: { id: '1', name: 'Our Company', slug: 'our-company', subscriptionPlan: 'professional', createdAt: new Date() },
-    roles: [{ id: '1', name: 'Account Manager', permissions: [], isSystem: false }],
-    isActive: true,
-    createdAt: new Date()
-  }
-];
-
-const mockInternalSPOCs: InternalSPOC[] = [
-  {
-    id: '1',
-    userId: '1',
-    user: mockUsers[0],
-    level: 'primary',
-    clientIds: ['1'],
-    clients: [mockClients[0]],
-    isActive: true,
-    assignedAt: new Date('2024-01-01'),
-    assignedBy: '1'
-  }
-];
-
-const SPOCManagement: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'external' | 'internal'>('external');
-  const [externalSPOCs] = useState<ExternalSPOC[]>(mockExternalSPOCs);
-  const [internalSPOCs] = useState<InternalSPOC[]>(mockInternalSPOCs);
+const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external', initialClientId }) => {
+  const [activeTab, setActiveTab] = useState<'external' | 'internal'>(initialTab);
+  const { clients: allClients, isLoading: clientsLoading } = useClients();
+  const clientsOptions = useMemo(() => (allClients || []).map((c: any) => ({ id: c.id, name: c.name })), [allClients]);
+  const { externalSpocs, isLoading: externalLoading, error: externalError, createExternal } = useExternalSpocs();
+  const { internalSpocs, isLoading: internalLoading, error: internalError, createInternal } = useInternalSpocs();
+  const [teamMembers, setTeamMembers] = useState<TeamMemberOption[]>([]);
+  const [teamLoading, setTeamLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedClient, setSelectedClient] = useState<string>('all');
+  const [selectedClient, setSelectedClient] = useState<string>(initialClientId || 'all');
   const [showFilters, setShowFilters] = useState(false);
   const [showSPOCForm, setShowSPOCForm] = useState(false);
   const [spocFormType, setSPOCFormType] = useState<'external' | 'internal'>('external');
 
-  const filteredExternalSPOCs = externalSPOCs.filter(spoc => {
+  // Fetch team members (users table) for internal SPOC assignment
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setTeamLoading(true);
+        const { data, error } = await supabase
+          .from('users')
+          .select('id, email, first_name, last_name, is_active')
+          .eq('is_active', true);
+        if (error) throw error;
+        setTeamMembers((data || []).map((u: any) => ({
+          id: u.id,
+          firstName: u.first_name || '',
+          lastName: u.last_name || '',
+          email: u.email || '',
+        })));
+      } catch (err) {
+        console.error('Failed to load team members', err);
+        setTeamMembers([]);
+      } finally {
+        setTeamLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const filteredExternalSPOCs = (externalSpocs || []).filter(spoc => {
     const matchesSearch = searchQuery === '' || 
       `${spoc.firstName} ${spoc.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
       spoc.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -126,7 +81,7 @@ const SPOCManagement: React.FC = () => {
     return matchesSearch && matchesClient;
   });
 
-  const filteredInternalSPOCs = internalSPOCs.filter(spoc => {
+  const filteredInternalSPOCs = (internalSpocs || []).filter(spoc => {
     const matchesSearch = searchQuery === '' || 
       `${spoc.user.firstName} ${spoc.user.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
       spoc.user.email.toLowerCase().includes(searchQuery.toLowerCase());
@@ -134,9 +89,33 @@ const SPOCManagement: React.FC = () => {
     return matchesSearch;
   });
 
-  const handleSaveSPOC = (spocData: any) => {
-    console.log('Saving SPOC:', spocData);
-    // In real app, this would call an API
+  const handleSaveSPOC = async (spocData: any) => {
+    try {
+      if (spocFormType === 'external') {
+        await createExternal({
+          clientId: spocData.clientId,
+          firstName: spocData.firstName,
+          lastName: spocData.lastName,
+          email: spocData.email,
+          phone: spocData.phone || undefined,
+          designation: spocData.designation,
+          department: spocData.department || undefined,
+          isPrimary: !!spocData.isPrimary,
+          linkedinUrl: spocData.linkedinUrl || undefined,
+          notes: spocData.notes || undefined,
+          isActive: !!spocData.isActive,
+        });
+      } else {
+        await createInternal({
+          userId: spocData.userId,
+          level: spocData.level,
+          clientIds: spocData.clientIds || [],
+          isActive: !!spocData.isActive,
+        });
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to save SPOC');
+    }
   };
 
   const renderExternalSPOCs = () => (
@@ -352,7 +331,7 @@ const SPOCManagement: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">External SPOCs</p>
-              <p className="text-2xl font-bold text-gray-900">{externalSPOCs.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{externalSpocs.length}</p>
             </div>
             <User className="w-8 h-8 text-blue-600" />
           </div>
@@ -362,7 +341,7 @@ const SPOCManagement: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Internal SPOCs</p>
-              <p className="text-2xl font-bold text-gray-900">{internalSPOCs.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{internalSpocs.length}</p>
             </div>
             <UserCheck className="w-8 h-8 text-green-600" />
           </div>
@@ -373,7 +352,7 @@ const SPOCManagement: React.FC = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">Primary SPOCs</p>
               <p className="text-2xl font-bold text-gray-900">
-                {externalSPOCs.filter(s => s.isPrimary).length}
+                {externalSpocs.filter(s => s.isPrimary).length}
               </p>
             </div>
             <Star className="w-8 h-8 text-yellow-600" />
@@ -385,7 +364,7 @@ const SPOCManagement: React.FC = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">Active SPOCs</p>
               <p className="text-2xl font-bold text-gray-900">
-                {[...externalSPOCs, ...internalSPOCs].filter(s => s.isActive).length}
+                {[...externalSpocs, ...internalSpocs].filter(s => s.isActive).length}
               </p>
             </div>
             <CheckCircle className="w-8 h-8 text-purple-600" />
@@ -428,7 +407,7 @@ const SPOCManagement: React.FC = () => {
                 : 'text-gray-600 hover:bg-gray-100'
             }`}
           >
-            External SPOCs ({externalSPOCs.length})
+            External SPOCs ({externalSpocs.length})
           </button>
           <button
             onClick={() => setActiveTab('internal')}
@@ -438,7 +417,7 @@ const SPOCManagement: React.FC = () => {
                 : 'text-gray-600 hover:bg-gray-100'
             }`}
           >
-            Internal SPOCs ({internalSPOCs.length})
+            Internal SPOCs ({internalSpocs.length})
           </button>
         </div>
 
@@ -456,7 +435,7 @@ const SPOCManagement: React.FC = () => {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="all">All Clients</option>
-                  {mockClients.map(client => (
+                  {clientsOptions.map(client => (
                     <option key={client.id} value={client.id}>{client.name}</option>
                   ))}
                 </select>
@@ -487,10 +466,20 @@ const SPOCManagement: React.FC = () => {
       </div>
 
       {/* SPOC Lists */}
-      {activeTab === 'external' ? renderExternalSPOCs() : renderInternalSPOCs()}
+      {(externalError || internalError) && (
+        <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-700 border border-red-200">
+          {externalError || internalError}
+        </div>
+      )}
+      {(clientsLoading || externalLoading || internalLoading || teamLoading) && (
+        <div className="text-center py-8 text-gray-500">Loading...</div>
+      )}
+      {!(clientsLoading || externalLoading || internalLoading || teamLoading) && (
+        activeTab === 'external' ? renderExternalSPOCs() : renderInternalSPOCs()
+      )}
 
       {/* Empty State */}
-      {((activeTab === 'external' && filteredExternalSPOCs.length === 0) ||
+      {!(clientsLoading || externalLoading || internalLoading || teamLoading) && ((activeTab === 'external' && filteredExternalSPOCs.length === 0) ||
         (activeTab === 'internal' && filteredInternalSPOCs.length === 0)) && (
         <div className="text-center py-12">
           <Users className="mx-auto h-12 w-12 text-gray-400" />
@@ -507,6 +496,9 @@ const SPOCManagement: React.FC = () => {
         isOpen={showSPOCForm}
         onClose={() => setShowSPOCForm(false)}
         onSave={handleSaveSPOC}
+        clients={clientsOptions}
+        teamMembers={teamMembers}
+        defaultClientId={selectedClient !== 'all' ? selectedClient : (initialClientId || undefined)}
       />
     </div>
   );

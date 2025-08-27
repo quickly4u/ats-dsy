@@ -59,7 +59,18 @@ export const useJobs = (filters?: FilterOptions) => {
             industry: 'Technology',
             contactInfo: { email: '', phone: '' },
             address: { street: '', city: '', state: '', country: '', zipCode: '' },
-            contractDetails: { startDate: new Date(), contractType: 'retainer', paymentTerms: '' },
+            contractDetails: {
+              startDate: new Date(),
+              endDate: undefined,
+              contractType: 'retainer',
+              paymentTerms: '',
+              isExclusive: false,
+              includesBackgroundCheck: false,
+              hasReplacementGuarantee: false,
+              replacementGuaranteeDays: undefined,
+              hasConfidentialityAgreement: false,
+              additionalTerms: undefined,
+            },
             status: 'active',
             totalJobs: 0,
             activeJobs: 0,
@@ -418,7 +429,18 @@ export const useApplications = (filters?: FilterOptions) => {
               industry: 'Technology',
               contactInfo: { email: '', phone: '' },
               address: { street: '', city: '', state: '', country: '', zipCode: '' },
-              contractDetails: { startDate: new Date(), contractType: 'retainer', paymentTerms: '' },
+              contractDetails: {
+                startDate: new Date(),
+                endDate: undefined,
+                contractType: 'retainer',
+                paymentTerms: '',
+                isExclusive: false,
+                includesBackgroundCheck: false,
+                hasReplacementGuarantee: false,
+                replacementGuaranteeDays: undefined,
+                hasConfidentialityAgreement: false,
+                additionalTerms: undefined,
+              },
               status: 'active',
               totalJobs: 0,
               activeJobs: 0,
@@ -830,6 +852,7 @@ export const useClients = (filters?: FilterOptions) => {
             contract_end_date,
             contract_type,
             payment_terms,
+            contract_details,
             created_at,
             updated_at
           `)
@@ -862,12 +885,25 @@ export const useClients = (filters?: FilterOptions) => {
             email: c.contact_email || '',
             phone: c.contact_phone || ''
           },
-          contractDetails: {
-            startDate: c.contract_start_date ? new Date(c.contract_start_date) : new Date(),
-            endDate: c.contract_end_date ? new Date(c.contract_end_date) : undefined,
-            contractType: (c.contract_type || 'retainer'),
-            paymentTerms: c.payment_terms || 'Net 30'
-          },
+          contractDetails: (() => {
+            const cd = c.contract_details || {};
+            const start = cd.startDate || c.contract_start_date;
+            const end = cd.endDate || c.contract_end_date;
+            return {
+              startDate: start ? new Date(start) : new Date(),
+              endDate: end ? new Date(end) : undefined,
+              contractType: cd.contractType || c.contract_type || 'retainer',
+              paymentTerms: cd.paymentTerms || c.payment_terms || 'Net 30',
+              isExclusive: !!cd.isExclusive,
+              includesBackgroundCheck: !!cd.includesBackgroundCheck,
+              hasReplacementGuarantee: !!cd.hasReplacementGuarantee,
+              replacementGuaranteeDays: typeof cd.replacementGuaranteeDays === 'number'
+                ? cd.replacementGuaranteeDays
+                : (cd.replacementGuaranteeDays ? parseInt(String(cd.replacementGuaranteeDays), 10) : undefined),
+              hasConfidentialityAgreement: !!cd.hasConfidentialityAgreement,
+              additionalTerms: cd.additionalTerms || undefined,
+            };
+          })(),
           createdAt: c.created_at ? new Date(c.created_at) : new Date(),
           updatedAt: c.updated_at ? new Date(c.updated_at) : new Date(),
         }));

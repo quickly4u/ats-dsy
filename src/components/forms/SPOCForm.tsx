@@ -34,9 +34,12 @@ interface SPOCFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (spocData: ExternalSPOCFormData | InternalSPOCFormData) => void;
+  clients?: Array<{ id: string; name: string }>;
+  teamMembers?: Array<{ id: string; firstName: string; lastName: string; email: string }>;
+  defaultClientId?: string;
 }
 
-const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave }) => {
+const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave, clients = [], teamMembers = [], defaultClientId }) => {
   const [formData, setFormData] = useState<ExternalSPOCFormData | InternalSPOCFormData>(() => {
     if (type === 'external' && spoc && 'clientId' in spoc) {
       return {
@@ -61,7 +64,7 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
       };
     } else {
       return type === 'external' ? {
-        clientId: '',
+        clientId: defaultClientId || '',
         firstName: '',
         lastName: '',
         email: '',
@@ -88,18 +91,7 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
   const setInternal = (patch: Partial<InternalSPOCFormData>) =>
     setFormData(prev => ({ ...(prev as InternalSPOCFormData), ...patch }));
 
-  // Mock data - in real app, these would come from API
-  const mockClients = [
-    { id: '1', name: 'TechCorp Solutions' },
-    { id: '2', name: 'FinanceFirst' },
-    { id: '3', name: 'HealthTech Innovations' }
-  ];
-
-  const mockUsers = [
-    { id: '1', firstName: 'John', lastName: 'Doe', email: 'john@company.com' },
-    { id: '2', firstName: 'Jane', lastName: 'Smith', email: 'jane@company.com' },
-    { id: '3', firstName: 'Mike', lastName: 'Johnson', email: 'mike@company.com' }
-  ];
+  // Options are provided via props: clients, teamMembers
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,7 +145,7 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Client</option>
-                    {mockClients.map(client => (
+                    {clients.map(client => (
                       <option key={client.id} value={client.id}>{client.name}</option>
                     ))}
                   </select>
@@ -316,7 +308,7 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Team Member</option>
-                    {mockUsers.map(user => (
+                    {teamMembers.map(user => (
                       <option key={user.id} value={user.id}>
                         {user.firstName} {user.lastName} ({user.email})
                       </option>
@@ -351,7 +343,7 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
                   </label>
                   <div className="border border-gray-300 rounded-lg p-4 max-h-48 overflow-y-auto">
                     <div className="space-y-2">
-                      {mockClients.map(client => (
+                      {clients.map(client => (
                         <label key={client.id} className="flex items-center space-x-2">
                           <input
                             type="checkbox"
@@ -391,7 +383,7 @@ const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave
                         <strong>Client List:</strong>
                         <ul className="list-disc list-inside mt-1">
                           {((formData as InternalSPOCFormData).clientIds ?? []).map((clientId) => {
-                            const client = mockClients.find(c => c.id === clientId);
+                            const client = clients.find(c => c.id === clientId);
                             return client ? <li key={clientId}>{client.name}</li> : null;
                           })}
                         </ul>

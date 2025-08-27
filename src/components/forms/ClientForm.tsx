@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { 
   X, 
   Save, 
@@ -34,6 +34,12 @@ type FormData = {
   paymentTerms: string;
   startDate: string; // yyyy-mm-dd
   endDate: string;   // yyyy-mm-dd or ''
+  isExclusive: boolean;
+  includesBackgroundCheck: boolean;
+  hasReplacementGuarantee: boolean;
+  replacementGuaranteeDays: string; // string to handle empty input
+  hasConfidentialityAgreement: boolean;
+  additionalTerms: string;
 };
 
 interface ClientFormProps {
@@ -66,8 +72,50 @@ const ClientForm: React.FC<ClientFormProps> = ({ client, isOpen, onClose, onSave
     startDate: client?.contractDetails?.startDate ? 
       new Date(client.contractDetails.startDate).toISOString().split('T')[0] : '',
     endDate: client?.contractDetails?.endDate ? 
-      new Date(client.contractDetails.endDate).toISOString().split('T')[0] : ''
+      new Date(client.contractDetails.endDate).toISOString().split('T')[0] : '',
+    isExclusive: client?.contractDetails?.isExclusive ?? false,
+    includesBackgroundCheck: client?.contractDetails?.includesBackgroundCheck ?? false,
+    hasReplacementGuarantee: client?.contractDetails?.hasReplacementGuarantee ?? false,
+    replacementGuaranteeDays: client?.contractDetails?.replacementGuaranteeDays?.toString() || '90',
+    hasConfidentialityAgreement: client?.contractDetails?.hasConfidentialityAgreement ?? false,
+    additionalTerms: client?.contractDetails?.additionalTerms || ''
   });
+
+  // Update form data when client prop changes
+  useEffect(() => {
+    if (client) {
+      setFormData({
+        name: client.name || '',
+        companyName: client.companyName || '',
+        industry: client.industry || '',
+        website: client.website || '',
+        description: client.description || '',
+        status: (client.status ?? 'active') as ClientStatus,
+        // Address
+        street: client.address?.street || '',
+        city: client.address?.city || '',
+        state: client.address?.state || '',
+        country: client.address?.country || 'United States',
+        zipCode: client.address?.zipCode || '',
+        // Contact Info
+        email: client.contactInfo?.email || '',
+        phone: client.contactInfo?.phone || '',
+        // Contract Details
+        contractType: (client.contractDetails?.contractType ?? 'retainer') as ContractType,
+        paymentTerms: client.contractDetails?.paymentTerms || 'Net 30',
+        startDate: client.contractDetails?.startDate ? 
+          new Date(client.contractDetails.startDate).toISOString().split('T')[0] : '',
+        endDate: client.contractDetails?.endDate ? 
+          new Date(client.contractDetails.endDate).toISOString().split('T')[0] : '',
+        isExclusive: client.contractDetails?.isExclusive ?? false,
+        includesBackgroundCheck: client.contractDetails?.includesBackgroundCheck ?? false,
+        hasReplacementGuarantee: client.contractDetails?.hasReplacementGuarantee ?? false,
+        replacementGuaranteeDays: client.contractDetails?.replacementGuaranteeDays?.toString() || '90',
+        hasConfidentialityAgreement: client.contractDetails?.hasConfidentialityAgreement ?? false,
+        additionalTerms: client.contractDetails?.additionalTerms || ''
+      });
+    }
+  }, [client]);
 
   const [activeTab, setActiveTab] = useState('basic');
   const [isSaving, setIsSaving] = useState(false);
@@ -81,26 +129,34 @@ const ClientForm: React.FC<ClientFormProps> = ({ client, isOpen, onClose, onSave
     setErrorMsg(null);
 
     try {
-      let logoUrl: string | undefined = client?.logo;
+      // Handle logo upload if a file was selected
+      let logoUrl = client?.logo;
       if (logoFile) {
-        const path = `logos/${Date.now()}-${logoFile.name}`;
+        const fileExt = logoFile.name.split('.').pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+        const filePath = `client-logos/${fileName}`;
+        
         const { error: uploadError } = await supabase.storage
           .from('client-logos')
-          .upload(path, logoFile, { cacheControl: '3600', upsert: false });
-        if (uploadError) {
-          throw new Error(`Logo upload failed: ${uploadError.message}`);
-        }
-        const { data } = supabase.storage.from('client-logos').getPublicUrl(path);
-        logoUrl = data.publicUrl;
+          .upload(filePath, logoFile);
+
+        if (uploadError) throw uploadError;
+        
+        // Get the public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('client-logos')
+          .getPublicUrl(filePath);
+          
+        logoUrl = publicUrl;
       }
 
       const clientData: Partial<Client> = {
-        id: client?.id,
+        ...(client?.id ? { id: client.id } : {}),
         name: formData.name,
         companyName: formData.companyName,
         industry: formData.industry,
-        website: formData.website || undefined,
-        description: formData.description || undefined,
+        website: formData.website,
+        description: formData.description,
         status: formData.status,
         logo: logoUrl,
         address: {
@@ -115,10 +171,16 @@ const ClientForm: React.FC<ClientFormProps> = ({ client, isOpen, onClose, onSave
           phone: formData.phone
         },
         contractDetails: {
-          contractType: formData.contractType as 'retainer' | 'contingency' | 'hybrid',
+          contractType: formData.contractType,
           paymentTerms: formData.paymentTerms,
           startDate: formData.startDate ? new Date(formData.startDate) : new Date(),
-          endDate: formData.endDate ? new Date(formData.endDate) : undefined
+          endDate: formData.endDate ? new Date(formData.endDate) : undefined,
+          isExclusive: formData.isExclusive,
+          includesBackgroundCheck: formData.includesBackgroundCheck,
+          hasReplacementGuarantee: formData.hasReplacementGuarantee,
+          replacementGuaranteeDays: formData.replacementGuaranteeDays ? parseInt(formData.replacementGuaranteeDays, 10) : undefined,
+          hasConfidentialityAgreement: formData.hasConfidentialityAgreement,
+          additionalTerms: formData.additionalTerms || undefined
         }
       };
 
@@ -526,23 +588,94 @@ const ClientForm: React.FC<ClientFormProps> = ({ client, isOpen, onClose, onSave
 
                 <div>
                   <h4 className="font-medium text-gray-900 mb-3">Additional Contract Terms</h4>
-                  <div className="space-y-3">
-                    <label className="flex items-center space-x-2">
-                      <input type="checkbox" className="rounded border-gray-300" />
-                      <span className="text-sm text-gray-700">Exclusive recruitment agreement</span>
-                    </label>
-                    <label className="flex items-center space-x-2">
-                      <input type="checkbox" className="rounded border-gray-300" />
-                      <span className="text-sm text-gray-700">Background check services included</span>
-                    </label>
-                    <label className="flex items-center space-x-2">
-                      <input type="checkbox" className="rounded border-gray-300" />
-                      <span className="text-sm text-gray-700">Replacement guarantee (90 days)</span>
-                    </label>
-                    <label className="flex items-center space-x-2">
-                      <input type="checkbox" className="rounded border-gray-300" />
-                      <span className="text-sm text-gray-700">Confidentiality agreement signed</span>
-                    </label>
+                  <div className="space-y-4">
+                    <div className="flex items-start">
+                      <div className="flex items-center h-5">
+                        <input
+                          type="checkbox"
+                          checked={formData.isExclusive}
+                          onChange={(e) => setFormData(prev => ({ ...prev, isExclusive: e.target.checked }))}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div className="ml-3 text-sm">
+                        <label htmlFor="isExclusive" className="font-medium text-gray-700">Exclusive Recruitment Agreement</label>
+                        <p className="text-gray-500">Client agrees to work exclusively with our agency for all recruitment needs during the contract period.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start">
+                      <div className="flex items-center h-5">
+                        <input
+                          type="checkbox"
+                          checked={formData.includesBackgroundCheck}
+                          onChange={(e) => setFormData(prev => ({ ...prev, includesBackgroundCheck: e.target.checked }))}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div className="ml-3 text-sm">
+                        <label htmlFor="includesBackgroundCheck" className="font-medium text-gray-700">Background Check Services</label>
+                        <p className="text-gray-500">Our agency will conduct comprehensive background checks on all candidates.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start">
+                      <div className="flex items-center h-5">
+                        <input
+                          type="checkbox"
+                          checked={formData.hasReplacementGuarantee}
+                          onChange={(e) => setFormData(prev => ({ ...prev, hasReplacementGuarantee: e.target.checked }))}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div className="ml-3 text-sm flex-1">
+                        <div className="flex items-center">
+                          <label htmlFor="hasReplacementGuarantee" className="font-medium text-gray-700">Replacement Guarantee</label>
+                          <div className="ml-3 flex items-center">
+                            <span className="text-gray-500 mr-2">for</span>
+                            <input
+                              type="number"
+                              min="1"
+                              value={formData.replacementGuaranteeDays}
+                              onChange={(e) => setFormData(prev => ({ ...prev, replacementGuaranteeDays: e.target.value }))}
+                              disabled={!formData.hasReplacementGuarantee}
+                              className="w-16 border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                            />
+                            <span className="text-gray-500 ml-2">days</span>
+                          </div>
+                        </div>
+                        <p className="text-gray-500 mt-1">We will provide a free replacement if the candidate leaves within the specified period.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start">
+                      <div className="flex items-center h-5">
+                        <input
+                          type="checkbox"
+                          checked={formData.hasConfidentialityAgreement}
+                          onChange={(e) => setFormData(prev => ({ ...prev, hasConfidentialityAgreement: e.target.checked }))}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div className="ml-3 text-sm">
+                        <label htmlFor="hasConfidentialityAgreement" className="font-medium text-gray-700">Confidentiality Agreement</label>
+                        <p className="text-gray-500">All parties agree to maintain strict confidentiality regarding recruitment activities.</p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label htmlFor="additionalTerms" className="block text-sm font-medium text-gray-700 mb-1">
+                        Additional Terms & Conditions
+                      </label>
+                      <textarea
+                        id="additionalTerms"
+                        rows={3}
+                        value={formData.additionalTerms}
+                        onChange={(e) => setFormData(prev => ({ ...prev, additionalTerms: e.target.value }))}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                        placeholder="Any other terms and conditions..."
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
