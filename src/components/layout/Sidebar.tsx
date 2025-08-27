@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Briefcase, 
@@ -15,26 +16,26 @@ import { useAuth } from '../../hooks/useAuth';
 
 interface SidebarProps {
   activeSection: string;
-  onSectionChange: (section: string) => void;
 }
 
 const navigationItems = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'clients', label: 'Clients', icon: Building },
-  { id: 'jobs', label: 'Jobs', icon: Briefcase },
-  { id: 'candidates', label: 'Candidates', icon: Users },
-  { id: 'applications', label: 'Applications', icon: FileText },
-  { id: 'interviews', label: 'Interviews', icon: Calendar },
-  { id: 'reports', label: 'Reports', icon: BarChart3 },
-  { id: 'team', label: 'Team', icon: UserCheck },
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+  { id: 'clients', label: 'Clients', icon: Building, path: '/clients' },
+  { id: 'spocs', label: 'SPOCs', icon: UserCheck, path: '/spocs' },
+  { id: 'jobs', label: 'Jobs', icon: Briefcase, path: '/jobs' },
+  { id: 'candidates', label: 'Candidates', icon: Users, path: '/candidates' },
+  { id: 'applications', label: 'Applications', icon: FileText, path: '/applications' },
+  { id: 'interviews', label: 'Interviews', icon: Calendar, path: '/interviews' },
+  { id: 'reports', label: 'Reports', icon: BarChart3, path: '/reports' },
+  { id: 'team', label: 'Team', icon: Users, path: '/team' },
 ];
 
 const adminItems = [
-  { id: 'company', label: 'Company', icon: Building },
-  { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'company', label: 'Company', icon: Building, path: '/company' },
+  { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ];
 
-const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeSection }) => {
   const { user } = useAuth();
 
   const isAdmin = user?.roles.some(role => 
@@ -63,9 +64,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange }) => 
           const isActive = activeSection === item.id;
           
           return (
-            <button
+            <Link
               key={item.id}
-              onClick={() => onSectionChange(item.id)}
+              to={item.path}
               className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-150 ${
                 isActive
                   ? 'bg-blue-50 text-blue-700 border border-blue-200'
@@ -77,7 +78,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange }) => 
                 className={isActive ? 'text-blue-600' : 'text-gray-400'} 
               />
               <span className="font-medium">{item.label}</span>
-            </button>
+            </Link>
           );
         })}
       </nav>
@@ -94,9 +95,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange }) => 
               const isActive = activeSection === item.id;
               
               return (
-                <button
+                <Link
                   key={item.id}
-                  onClick={() => onSectionChange(item.id)}
+                  to={item.path}
                   className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors duration-150 ${
                     isActive
                       ? 'bg-blue-50 text-blue-700'
@@ -108,7 +109,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange }) => 
                     className={isActive ? 'text-blue-600' : 'text-gray-400'} 
                   />
                   <span className="text-sm font-medium">{item.label}</span>
-                </button>
+                </Link>
               );
             })}
           </div>

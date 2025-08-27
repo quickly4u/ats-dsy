@@ -20,7 +20,7 @@ import {
 import SPOCForm from '../forms/SPOCForm';
 import { useClients } from '../../hooks/useRecruitmentData';
 import { useExternalSpocs, useInternalSpocs } from '../../hooks/useSpocs';
-import { supabase } from '../../lib/supabase';
+import { supabase, getCurrentUserCompanyId } from '../../lib/supabase';
 
 interface SPOCManagementProps {
   initialTab?: 'external' | 'internal';
@@ -44,15 +44,22 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
   const [showSPOCForm, setShowSPOCForm] = useState(false);
   const [spocFormType, setSPOCFormType] = useState<'external' | 'internal'>('external');
 
-  // Fetch team members (users table) for internal SPOC assignment
+  // Fetch team members (users table) for internal SPOC assignment - only from current company
   useEffect(() => {
     const load = async () => {
       try {
         setTeamLoading(true);
+        const companyId = await getCurrentUserCompanyId();
+        if (!companyId) {
+          throw new Error('User company not found');
+        }
+        
         const { data, error } = await supabase
           .from('users')
           .select('id, email, first_name, last_name, is_active')
-          .eq('is_active', true);
+          .eq('company_id', companyId)
+          .eq('is_active', true)
+          .order('first_name');
         if (error) throw error;
         setTeamMembers((data || []).map((u: any) => ({
           id: u.id,

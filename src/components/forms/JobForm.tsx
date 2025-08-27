@@ -1,24 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   Save, 
   Building2, 
-  MapPin, 
-  DollarSign, 
   Calendar,
   Users,
   FileText,
   Settings,
   Plus,
-  Trash2
+  Trash2,
+  Star
 } from 'lucide-react';
-import type { Job, Client, Department, User } from '../../types';
+import type { Job } from '../../types';
+import { saveJobRequiredSkills, getJobRequiredSkills, getExternalSpocs, getInternalSpocs, getActiveClients } from '../../lib/jobSkillsApi';
+import { getCurrentUserCompanyId } from '../../lib/supabase';
 
 interface JobFormProps {
   job?: Job;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (jobData: Partial<Job>) => void;
+  onSave: (jobData: Partial<Job>) => Promise<any>;
 }
 
 const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
@@ -37,25 +38,89 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
     experienceLevel: job?.experienceLevel || 'mid',
     location: job?.location || '',
     remoteType: job?.remoteType || 'hybrid',
-    salaryMin: job?.salaryMin || '',
-    salaryMax: job?.salaryMax || '',
+    salaryMin: job?.salaryMin?.toString() || '',
+    salaryMax: job?.salaryMax?.toString() || '',
     status: job?.status || 'draft',
     expiresAt: job?.expiresAt ? new Date(job.expiresAt).toISOString().split('T')[0] : '',
-    skills: [] as string[],
+    requiredSkills: [] as { name: string; isMandatory: boolean; experienceLevel?: string }[],
     benefits: [] as string[],
     customQuestions: [] as { question: string; type: string; required: boolean }[]
   });
 
   const [currentSkill, setCurrentSkill] = useState('');
+  const [currentSkillLevel, setCurrentSkillLevel] = useState('intermediate');
   const [currentBenefit, setCurrentBenefit] = useState('');
   const [activeTab, setActiveTab] = useState('basic');
+  const [externalSpocs, setExternalSpocs] = useState<any[]>([]);
+  const [internalSpocs, setInternalSpocs] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingExternalSpocs, setLoadingExternalSpocs] = useState(false);
+  const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
+  const [loadingClients, setLoadingClients] = useState<boolean>(false);
+  const [clientsError, setClientsError] = useState<string | null>(null);
 
-  // Mock data - in real app, these would come from API
-  const mockClients = [
-    { id: '1', name: 'TechCorp Solutions' },
-    { id: '2', name: 'FinanceFirst' },
-    { id: '3', name: 'HealthTech Innovations' }
-  ];
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoadingClients(true);
+        setClientsError(null);
+        const companyId = await getCurrentUserCompanyId();
+        if (companyId) {
+          const [internalSpocsData, activeClients] = await Promise.all([
+            getInternalSpocs(),
+            getActiveClients()
+          ]);
+          setInternalSpocs(internalSpocsData);
+          setClients((activeClients || []).map((c: any) => ({ id: c.id, name: c.name })));
+        } else {
+          const activeClients = await getActiveClients();
+          setClients((activeClients || []).map((c: any) => ({ id: c.id, name: c.name })));
+        }
+        
+        if (job?.id) {
+          const existingSkills = await getJobRequiredSkills(job.id);
+          const mappedSkills = existingSkills.map(skill => ({
+            name: skill.skill_name,
+            isMandatory: skill.is_mandatory,
+            experienceLevel: skill.experience_level
+          }));
+          setFormData(prev => ({ ...prev, requiredSkills: mappedSkills }));
+        }
+      } catch (error: any) {
+        console.error('Error loading data:', error);
+        setClients([]);
+        setClientsError(error?.message || 'Failed to load clients');
+      } finally {
+        setLoadingClients(false);
+      }
+    };
+    
+    if (isOpen) {
+      loadData();
+    }
+  }, [isOpen, job?.id]);
+
+  useEffect(() => {
+    const loadExternalSpocs = async () => {
+      if (formData.clientId) {
+        setLoadingExternalSpocs(true);
+        try {
+          const spocsData = await getExternalSpocs(formData.clientId);
+          setExternalSpocs(spocsData);
+        } catch (error) {
+          console.error('Error loading external spocs:', error);
+          setExternalSpocs([]);
+        } finally {
+          setLoadingExternalSpocs(false);
+        }
+      } else {
+        setExternalSpocs([]);
+        setFormData(prev => ({ ...prev, externalSpocId: '' }));
+      }
+    };
+    
+    loadExternalSpocs();
+  }, [formData.clientId]);
 
   const mockDepartments = [
     { id: '1', name: 'Engineering' },
@@ -64,32 +129,75 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
     { id: '4', name: 'Design' }
   ];
 
-  const mockUsers = [
-    { id: '1', firstName: 'John', lastName: 'Doe' },
-    { id: '2', firstName: 'Jane', lastName: 'Smith' },
-    { id: '3', firstName: 'Mike', lastName: 'Johnson' }
-  ];
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
-    onClose();
+    setIsLoading(true);
+    
+    try {
+      const companyId = await getCurrentUserCompanyId();
+      if (!companyId) {
+        throw new Error('Your user is not associated with any company. Cannot create or update job.');
+      }
+
+      const jobData = {
+        ...formData,
+        salaryMin: formData.salaryMin ? Number(formData.salaryMin) : undefined,
+        salaryMax: formData.salaryMax ? Number(formData.salaryMax) : undefined,
+        expiresAt: formData.expiresAt ? new Date(formData.expiresAt) : undefined,
+        employmentType: formData.employmentType as 'full-time' | 'part-time' | 'contract' | 'internship',
+        experienceLevel: formData.experienceLevel as 'entry' | 'mid' | 'senior' | 'executive',
+        remoteType: formData.remoteType as 'remote' | 'hybrid' | 'on-site',
+        status: formData.status as 'draft' | 'published' | 'paused' | 'closed',
+        companyId,
+      };
+      
+      const savedJob = await onSave(jobData);
+      
+      const targetJobId = job?.id || savedJob?.id;
+      if (targetJobId) {
+        const skillsToSave = formData.requiredSkills.map(skill => ({
+          skill_name: skill.name,
+          is_mandatory: skill.isMandatory,
+          experience_level: skill.experienceLevel
+        }));
+        await saveJobRequiredSkills(targetJobId, skillsToSave);
+      }
+      
+      onClose();
+    } catch (error) {
+      console.error('Error saving job:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const addSkill = () => {
+  const addRequiredSkill = () => {
     if (currentSkill.trim()) {
       setFormData(prev => ({
         ...prev,
-        skills: [...prev.skills, currentSkill.trim()]
+        requiredSkills: [...prev.requiredSkills, {
+          name: currentSkill.trim(),
+          isMandatory: false,
+          experienceLevel: currentSkillLevel
+        }]
       }));
       setCurrentSkill('');
     }
   };
 
-  const removeSkill = (index: number) => {
+  const removeRequiredSkill = (index: number) => {
     setFormData(prev => ({
       ...prev,
-      skills: prev.skills.filter((_, i) => i !== index)
+      requiredSkills: prev.requiredSkills.filter((_, i) => i !== index)
+    }));
+  };
+
+  const toggleSkillMandatory = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      requiredSkills: prev.requiredSkills.map((skill, i) => 
+        i === index ? { ...skill, isMandatory: !skill.isMandatory } : skill
+      )
     }));
   };
 
@@ -210,13 +318,19 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
                       required
                       value={formData.clientId}
                       onChange={(e) => setFormData(prev => ({ ...prev, clientId: e.target.value }))}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      disabled={loadingClients || !!clientsError}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     >
-                      <option value="">Select Client</option>
-                      {mockClients.map(client => (
+                      <option value="">
+                        {loadingClients ? 'Loading clients...' : clientsError ? 'Failed to load clients' : 'Select Client'}
+                      </option>
+                      {clients.map(client => (
                         <option key={client.id} value={client.id}>{client.name}</option>
                       ))}
                     </select>
+                    {clientsError && (
+                      <p className="text-xs text-red-600 mt-1">{clientsError}</p>
+                    )}
                   </div>
 
                   <div>
@@ -242,7 +356,7 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
                     </label>
                     <select
                       value={formData.employmentType}
-                      onChange={(e) => setFormData(prev => ({ ...prev, employmentType: e.target.value }))}
+                      onChange={(e) => setFormData(prev => ({ ...prev, employmentType: e.target.value as 'full-time' | 'part-time' | 'contract' | 'internship' }))}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="full-time">Full-time</option>
@@ -258,7 +372,7 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
                     </label>
                     <select
                       value={formData.experienceLevel}
-                      onChange={(e) => setFormData(prev => ({ ...prev, experienceLevel: e.target.value }))}
+                      onChange={(e) => setFormData(prev => ({ ...prev, experienceLevel: e.target.value as 'entry' | 'mid' | 'senior' | 'executive' }))}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="entry">Entry Level</option>
@@ -288,7 +402,7 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
                     </label>
                     <select
                       value={formData.remoteType}
-                      onChange={(e) => setFormData(prev => ({ ...prev, remoteType: e.target.value }))}
+                      onChange={(e) => setFormData(prev => ({ ...prev, remoteType: e.target.value as 'remote' | 'hybrid' | 'on-site' }))}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="on-site">On-site</option>
@@ -303,7 +417,7 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
                     </label>
                     <select
                       value={formData.status}
-                      onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value }))}
+                      onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as 'draft' | 'published' | 'paused' | 'closed' }))}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="draft">Draft</option>
@@ -401,44 +515,145 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
                   />
                 </div>
 
-                {/* Skills */}
+                {/* Required Skills */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Required Skills
                   </label>
-                  <div className="flex space-x-2 mb-2">
-                    <input
-                      type="text"
-                      value={currentSkill}
-                      onChange={(e) => setCurrentSkill(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addSkill())}
-                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Add a skill"
-                    />
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+                    <h4 className="font-medium text-gray-900 mb-3">Add New Skill</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="md:col-span-2">
+                        <input
+                          type="text"
+                          value={currentSkill}
+                          onChange={(e) => setCurrentSkill(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addRequiredSkill())}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Enter skill name (e.g., React, Python, SQL)"
+                        />
+                      </div>
+                      <div>
+                        <select
+                          value={currentSkillLevel}
+                          onChange={(e) => setCurrentSkillLevel(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="beginner">Beginner</option>
+                          <option value="intermediate">Intermediate</option>
+                          <option value="advanced">Advanced</option>
+                          <option value="expert">Expert</option>
+                        </select>
+                      </div>
+                    </div>
                     <button
                       type="button"
-                      onClick={addSkill}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      onClick={addRequiredSkill}
+                      className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
                     >
                       <Plus size={16} />
+                      <span>Add Skill</span>
                     </button>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {formData.skills.map((skill, index) => (
-                      <span
-                        key={index}
-                        className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm flex items-center space-x-1"
-                      >
-                        <span>{skill}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeSkill(index)}
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          <X size={14} />
-                        </button>
-                      </span>
-                    ))}
+                  
+                  {/* Skills List */}
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Mandatory Skills */}
+                      <div>
+                        <h4 className="font-medium text-gray-900 mb-2 flex items-center space-x-2">
+                          <Star className="text-yellow-500" size={16} fill="currentColor" />
+                          <span>Mandatory Skills</span>
+                        </h4>
+                        <div className="space-y-2 min-h-[100px] border border-gray-200 rounded-lg p-3">
+                          {formData.requiredSkills.filter(skill => skill.isMandatory).map((skill) => {
+                            const originalIndex = formData.requiredSkills.findIndex(s => s === skill);
+                            return (
+                              <div
+                                key={originalIndex}
+                                className="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg px-3 py-2"
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleSkillMandatory(originalIndex)}
+                                    className="text-yellow-500 hover:text-yellow-600"
+                                  >
+                                    <Star size={14} fill="currentColor" />
+                                  </button>
+                                  <span className="font-medium text-red-800">{skill.name}</span>
+                                  <span className="text-xs text-red-600 bg-red-100 px-2 py-1 rounded">
+                                    {skill.experienceLevel}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removeRequiredSkill(originalIndex)}
+                                  className="text-red-600 hover:text-red-800"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            );
+                          })}
+                          {formData.requiredSkills.filter(skill => skill.isMandatory).length === 0 && (
+                            <p className="text-sm text-gray-500 text-center py-4">No mandatory skills added</p>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Non-Mandatory Skills */}
+                      <div>
+                        <h4 className="font-medium text-gray-900 mb-2 flex items-center space-x-2">
+                          <Star className="text-gray-400" size={16} />
+                          <span>Non-Mandatory Skills</span>
+                        </h4>
+                        <div className="space-y-2 min-h-[100px] border border-gray-200 rounded-lg p-3">
+                          {formData.requiredSkills.filter(skill => !skill.isMandatory).map((skill) => {
+                            const originalIndex = formData.requiredSkills.findIndex(s => s === skill);
+                            return (
+                              <div
+                                key={originalIndex}
+                                className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-3 py-2"
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleSkillMandatory(originalIndex)}
+                                    className="text-gray-400 hover:text-yellow-500"
+                                  >
+                                    <Star size={14} />
+                                  </button>
+                                  <span className="font-medium text-blue-800">{skill.name}</span>
+                                  <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
+                                    {skill.experienceLevel}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removeRequiredSkill(originalIndex)}
+                                  className="text-blue-600 hover:text-blue-800"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            );
+                          })}
+                          {formData.requiredSkills.filter(skill => !skill.isMandatory).length === 0 && (
+                            <p className="text-sm text-gray-500 text-center py-4">No non-mandatory skills added</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {formData.requiredSkills.length > 0 && (
+                      <div className="text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <p className="flex items-center space-x-1">
+                          <Star className="text-yellow-500" size={14} fill="currentColor" />
+                          <span>Click the star icon to toggle between mandatory and non-mandatory skills</span>
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -488,77 +703,113 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
             {/* Team & SPOCs Tab */}
             {activeTab === 'team' && (
               <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      External SPOC *
-                    </label>
-                    <select
-                      required
-                      value={formData.externalSpocId}
-                      onChange={(e) => setFormData(prev => ({ ...prev, externalSpocId: e.target.value }))}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select External SPOC</option>
-                      <option value="1">Sarah Johnson (VP Engineering)</option>
-                      <option value="2">Michael Chen (HR Director)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Primary Internal SPOC *
-                    </label>
-                    <select
-                      required
-                      value={formData.primaryInternalSpocId}
-                      onChange={(e) => setFormData(prev => ({ ...prev, primaryInternalSpocId: e.target.value }))}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select Primary Internal SPOC</option>
-                      {mockUsers.map(user => (
-                        <option key={user.id} value={user.id}>
-                          {user.firstName} {user.lastName}
+                {/* Row 1: External SPOC and Hiring Manager */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h3 className="font-medium text-blue-900 mb-4 flex items-center space-x-2">
+                    <Users size={16} />
+                    <span>External Team & Hiring Manager</span>
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        External SPOC *
+                      </label>
+                      <select
+                        required
+                        value={formData.externalSpocId}
+                        onChange={(e) => setFormData(prev => ({ ...prev, externalSpocId: e.target.value }))}
+                        disabled={!formData.clientId || loadingExternalSpocs}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      >
+                        <option value="">
+                          {!formData.clientId 
+                            ? 'Select a client first' 
+                            : loadingExternalSpocs 
+                            ? 'Loading external SPOCs...' 
+                            : 'Select External SPOC'
+                          }
                         </option>
-                      ))}
-                    </select>
-                  </div>
+                        {externalSpocs.map(spoc => (
+                          <option key={spoc.id} value={spoc.id}>
+                            {spoc.first_name} {spoc.last_name} ({spoc.designation})
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {!formData.clientId 
+                          ? 'Please select a client in the Basic Info tab first' 
+                          : 'Client-side point of contact'
+                        }
+                      </p>
+                    </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Secondary Internal SPOC
-                    </label>
-                    <select
-                      value={formData.secondaryInternalSpocId}
-                      onChange={(e) => setFormData(prev => ({ ...prev, secondaryInternalSpocId: e.target.value }))}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select Secondary Internal SPOC</option>
-                      {mockUsers.map(user => (
-                        <option key={user.id} value={user.id}>
-                          {user.firstName} {user.lastName}
-                        </option>
-                      ))}
-                    </select>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Hiring Manager *
+                      </label>
+                      <select
+                        required
+                        value={formData.hiringManagerId}
+                        onChange={(e) => setFormData(prev => ({ ...prev, hiringManagerId: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select Hiring Manager</option>
+                        {internalSpocs.map(user => (
+                          <option key={user.id} value={user.id}>
+                            {user.first_name} {user.last_name}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">Decision maker for this role</p>
+                    </div>
                   </div>
+                </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Hiring Manager *
-                    </label>
-                    <select
-                      required
-                      value={formData.hiringManagerId}
-                      onChange={(e) => setFormData(prev => ({ ...prev, hiringManagerId: e.target.value }))}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select Hiring Manager</option>
-                      {mockUsers.map(user => (
-                        <option key={user.id} value={user.id}>
-                          {user.firstName} {user.lastName}
-                        </option>
-                      ))}
-                    </select>
+                {/* Row 2: Internal SPOCs */}
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <h3 className="font-medium text-green-900 mb-4 flex items-center space-x-2">
+                    <Users size={16} />
+                    <span>Internal SPOCs</span>
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Primary Internal SPOC *
+                      </label>
+                      <select
+                        required
+                        value={formData.primaryInternalSpocId}
+                        onChange={(e) => setFormData(prev => ({ ...prev, primaryInternalSpocId: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select Primary Internal SPOC</option>
+                        {internalSpocs.map(user => (
+                          <option key={user.id} value={user.id}>
+                            {user.first_name} {user.last_name}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">Main internal coordinator</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Secondary Internal SPOC
+                      </label>
+                      <select
+                        value={formData.secondaryInternalSpocId}
+                        onChange={(e) => setFormData(prev => ({ ...prev, secondaryInternalSpocId: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select Secondary Internal SPOC</option>
+                        {internalSpocs.map(user => (
+                          <option key={user.id} value={user.id}>
+                            {user.first_name} {user.last_name}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">Backup internal coordinator</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -728,10 +979,11 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+              disabled={isLoading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
             >
               <Save size={16} />
-              <span>{job ? 'Update Job' : 'Create Job'}</span>
+              <span>{isLoading ? 'Saving...' : (job ? 'Update Job' : 'Create Job')}</span>
             </button>
           </div>
         </form>

@@ -9,6 +9,7 @@ import { useJobs } from '../../hooks/useRecruitmentData';
 import type { Job, FilterOptions } from '../../types';
 import JobCard from './JobCard';
 import JobForm from '../forms/JobForm';
+import { createJob, updateJob } from '../../lib/jobSkillsApi';
 import JobDetailsModal from './JobDetailsModal';
 
 const JobsList: React.FC = () => {
@@ -23,9 +24,26 @@ const JobsList: React.FC = () => {
     setFilters(prev => ({ ...prev, search }));
   };
 
-  const handleSaveJob = (jobData: Partial<Job>) => {
-    console.log('Saving job:', jobData);
-    // In real app, this would call an API
+  const handleSaveJob = async (jobData: Partial<Job>) => {
+    try {
+      // Create or update
+      if (selectedJob?.id) {
+        const updated = await updateJob(selectedJob.id, jobData);
+        console.debug('Job updated:', updated);
+        // Trigger a refresh of the jobs list
+        setFilters(prev => ({ ...prev }));
+        return updated;
+      } else {
+        const created = await createJob(jobData);
+        console.debug('Job created:', created);
+        // Trigger a refresh of the jobs list
+        setFilters(prev => ({ ...prev }));
+        return created;
+      }
+    } catch (err) {
+      console.error('Failed to save job:', err);
+      throw err;
+    }
   };
 
   if (error) {

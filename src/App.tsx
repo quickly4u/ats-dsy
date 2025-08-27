@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import AuthProvider from './components/auth/AuthProvider';
 import LoginForm from './components/auth/LoginForm';
 import SignupForm from './components/auth/SignupForm';
+import LandingPage from './components/landing/LandingPage';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import Dashboard from './components/dashboard/Dashboard';
@@ -19,8 +21,9 @@ import SPOCManagement from './components/clients/SPOCManagement';
 
 const AppContent: React.FC = () => {
   const { isLoading, isAuthenticated } = useAuth();
-  const [activeSection, setActiveSection] = useState('dashboard');
-  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const location = useLocation();
+  const [showLogin, setShowLogin] = useState(false);
+  const [showSignup, setShowSignup] = useState(false);
 
   if (isLoading) {
     return (
@@ -34,43 +37,44 @@ const AppContent: React.FC = () => {
   }
 
   if (!isAuthenticated) {
-    return authMode === 'login' ? (
-      <LoginForm onSwitchToSignup={() => setAuthMode('signup')} />
-    ) : (
-      <SignupForm onSwitchToLogin={() => setAuthMode('login')} />
+    return (
+      <Routes>
+        <Route 
+          path="/" 
+          element={
+            showLogin ? (
+              <LoginForm onSwitchToSignup={() => { setShowLogin(false); setShowSignup(true); }} />
+            ) : showSignup ? (
+              <SignupForm onSwitchToLogin={() => { setShowSignup(false); setShowLogin(true); }} />
+            ) : (
+              <LandingPage 
+                onLogin={() => setShowLogin(true)} 
+                onSignup={() => setShowSignup(true)} 
+              />
+            )
+          } 
+        />
+        <Route 
+          path="/login" 
+          element={<LoginForm onSwitchToSignup={() => { setShowLogin(false); setShowSignup(true); }} />} 
+        />
+        <Route 
+          path="/signup" 
+          element={<SignupForm onSwitchToLogin={() => { setShowSignup(false); setShowLogin(true); }} />} 
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     );
   }
 
-  const renderMainContent = () => {
-    switch (activeSection) {
-      case 'dashboard':
-        return <Dashboard />;
-      case 'clients':
-        return <ClientsList />;
-      case 'spocs':
-        return <SPOCManagement />;
-      case 'jobs':
-        return <JobsList />;
-      case 'candidates':
-        return <CandidatesList />;
-      case 'applications':
-        return <ApplicationsList />;
-      case 'interviews':
-        return <InterviewsList />;
-      case 'reports':
-        return <ReportsList />;
-      case 'team':
-        return <TeamList />;
-      case 'company':
-        return <CompanySettings />;
-      case 'settings':
-        return <SystemSettings />;
-      default:
-        return <Dashboard />;
-    }
+  const getActiveSection = () => {
+    const path = location.pathname;
+    if (path === '/' || path === '/dashboard') return 'dashboard';
+    return path.substring(1); // Remove leading slash
   };
 
   const getSectionTitle = () => {
+    const activeSection = getActiveSection();
     const titles: Record<string, string> = {
       dashboard: 'Dashboard',
       clients: 'Client Management',
@@ -88,6 +92,7 @@ const AppContent: React.FC = () => {
   };
 
   const getSectionSubtitle = () => {
+    const activeSection = getActiveSection();
     const subtitles: Record<string, string> = {
       dashboard: 'Overview of your recruitment activities and key metrics',
       clients: 'Manage client relationships and external partnerships',
@@ -108,8 +113,7 @@ const AppContent: React.FC = () => {
     <div className="h-screen flex bg-gray-50">
       {/* Sidebar */}
       <Sidebar 
-        activeSection={activeSection} 
-        onSectionChange={setActiveSection} 
+        activeSection={getActiveSection()} 
       />
       
       {/* Main Content */}
@@ -118,12 +122,28 @@ const AppContent: React.FC = () => {
         <Header 
           title={getSectionTitle()}
           subtitle={getSectionSubtitle()}
-          showSearch={['jobs', 'candidates', 'applications'].includes(activeSection)}
+          showSearch={['jobs', 'candidates', 'applications'].includes(getActiveSection())}
         />
         
         {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto bg-gray-50">
-          {renderMainContent()}
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/clients" element={<ClientsList />} />
+            <Route path="/spocs" element={<SPOCManagement />} />
+            <Route path="/jobs" element={<JobsList />} />
+            <Route path="/candidates" element={<CandidatesList />} />
+            <Route path="/applications" element={<ApplicationsList />} />
+            <Route path="/interviews" element={<InterviewsList />} />
+            <Route path="/reports" element={<ReportsList />} />
+            <Route path="/team" element={<TeamList />} />
+            <Route path="/company" element={<CompanySettings />} />
+            <Route path="/settings" element={<SystemSettings />} />
+            <Route path="/login" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/signup" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
         </main>
       </div>
     </div>

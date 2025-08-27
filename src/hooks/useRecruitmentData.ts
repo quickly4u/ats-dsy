@@ -7,7 +7,7 @@ import type {
   RecruitmentMetrics,
   FilterOptions
 } from '../types';
-import { supabase } from '../lib/supabase';
+import { supabase, getCurrentUserCompanyId } from '../lib/supabase';
 
 // Mock data generators removed - now using real Supabase data
 
@@ -21,7 +21,13 @@ export const useJobs = (filters?: FilterOptions) => {
       try {
         setIsLoading(true);
         
-        // Fetch jobs from Supabase
+        // Get current user's company ID
+        const companyId = await getCurrentUserCompanyId();
+        if (!companyId) {
+          throw new Error('User company not found');
+        }
+        
+        // Fetch jobs from Supabase filtered by company_id
         const { data: jobRows, error: jobError } = await supabase
           .from('jobs')
           .select(`
@@ -40,8 +46,10 @@ export const useJobs = (filters?: FilterOptions) => {
             published_at,
             expires_at,
             created_at,
-            client_id
+            client_id,
+            company_id
           `)
+          .eq('company_id', companyId)
           .order('created_at', { ascending: false });
 
         if (jobError) {
@@ -165,7 +173,13 @@ export const useCandidates = (filters?: FilterOptions) => {
       try {
         setIsLoading(true);
         
-        // Fetch candidates from Supabase with basic fields only
+        // Get current user's company ID
+        const companyId = await getCurrentUserCompanyId();
+        if (!companyId) {
+          throw new Error('User company not found');
+        }
+        
+        // Fetch candidates from Supabase with basic fields only, filtered by company_id
         const { data: candidateRows, error: candidateError } = await supabase
           .from('candidates')
           .select(`
@@ -187,8 +201,10 @@ export const useCandidates = (filters?: FilterOptions) => {
             rating,
             is_blacklisted,
             gdpr_consent,
-            created_at
+            created_at,
+            company_id
           `)
+          .eq('company_id', companyId)
           .order('created_at', { ascending: false });
 
         if (candidateError) {
@@ -300,7 +316,13 @@ export const useApplications = (filters?: FilterOptions) => {
       try {
         setIsLoading(true);
         
-        // Fetch applications with separate queries to avoid complex joins
+        // Get current user's company ID
+        const companyId = await getCurrentUserCompanyId();
+        if (!companyId) {
+          throw new Error('User company not found');
+        }
+        
+        // Fetch applications with separate queries to avoid complex joins, filtered by company_id
         const { data: applicationRows, error: applicationError } = await supabase
           .from('applications')
           .select(`
@@ -315,8 +337,10 @@ export const useApplications = (filters?: FilterOptions) => {
             notes,
             job_id,
             candidate_id,
-            stage_id
+            stage_id,
+            company_id
           `)
+          .eq('company_id', companyId)
           .order('applied_at', { ascending: false });
 
         if (applicationError) {
@@ -333,7 +357,7 @@ export const useApplications = (filters?: FilterOptions) => {
         const candidateIds = [...new Set(applicationRows.map(app => app.candidate_id).filter(Boolean))];
         const stageIds = [...new Set(applicationRows.map(app => app.stage_id).filter(Boolean))];
 
-        // Fetch jobs
+        // Fetch jobs (already filtered by company_id through applications)
         const { data: jobRows, error: jobError } = await supabase
           .from('jobs')
           .select(`
@@ -352,15 +376,17 @@ export const useApplications = (filters?: FilterOptions) => {
             published_at,
             expires_at,
             created_at,
-            client_id
+            client_id,
+            company_id
           `)
-          .in('id', jobIds);
+          .in('id', jobIds)
+          .eq('company_id', companyId);
 
         if (jobError) {
           console.warn('Error fetching jobs:', jobError);
         }
 
-        // Fetch candidates
+        // Fetch candidates (already filtered by company_id through applications)
         const { data: candidateRows, error: candidateError } = await supabase
           .from('candidates')
           .select(`
@@ -382,15 +408,17 @@ export const useApplications = (filters?: FilterOptions) => {
             rating,
             is_blacklisted,
             gdpr_consent,
-            created_at
+            created_at,
+            company_id
           `)
-          .in('id', candidateIds);
+          .in('id', candidateIds)
+          .eq('company_id', companyId);
 
         if (candidateError) {
           console.warn('Error fetching candidates:', candidateError);
         }
 
-        // Fetch stages
+        // Fetch stages (already filtered by company_id through applications)
         const { data: stageRows, error: stageError } = await supabase
           .from('stages')
           .select(`
@@ -399,9 +427,11 @@ export const useApplications = (filters?: FilterOptions) => {
             description,
             order_index,
             stage_type,
-            is_default
+            is_default,
+            company_id
           `)
-          .in('id', stageIds);
+          .in('id', stageIds)
+          .eq('company_id', companyId);
 
         if (stageError) {
           console.warn('Error fetching stages:', stageError);
@@ -578,11 +608,17 @@ export const useRecruitmentMetrics = () => {
       try {
         setIsLoading(true);
         
-        // Fetch real metrics from Supabase
+        // Get current user's company ID
+        const companyId = await getCurrentUserCompanyId();
+        if (!companyId) {
+          throw new Error('User company not found');
+        }
+        
+        // Fetch real metrics from Supabase filtered by company_id
         const [jobsResult, applicationsResult, interviewsResult] = await Promise.all([
-          supabase.from('jobs').select('id, status'),
-          supabase.from('applications').select('id, status, applied_at, source'),
-          supabase.from('interviews').select('id, status')
+          supabase.from('jobs').select('id, status').eq('company_id', companyId),
+          supabase.from('applications').select('id, status, applied_at, source').eq('company_id', companyId),
+          supabase.from('interviews').select('id, status').eq('company_id', companyId)
         ]);
 
         const jobs = jobsResult.data || [];
@@ -665,7 +701,13 @@ export const useInterviews = (filters?: FilterOptions) => {
       try {
         setIsLoading(true);
         
-        // Fetch interviews from Supabase
+        // Get current user's company ID
+        const companyId = await getCurrentUserCompanyId();
+        if (!companyId) {
+          throw new Error('User company not found');
+        }
+        
+        // Fetch interviews from Supabase filtered by company_id
         const { data: interviewRows, error: interviewError } = await supabase
           .from('interviews')
           .select(`
@@ -678,8 +720,10 @@ export const useInterviews = (filters?: FilterOptions) => {
             status,
             interview_round,
             created_at,
-            application_id
+            application_id,
+            company_id
           `)
+          .eq('company_id', companyId)
           .order('scheduled_at', { ascending: false });
 
         if (interviewError) {
@@ -694,7 +738,7 @@ export const useInterviews = (filters?: FilterOptions) => {
         // Get application IDs to fetch related data
         const applicationIds = [...new Set(interviewRows.map(interview => interview.application_id).filter(Boolean))];
 
-        // Fetch applications with related data
+        // Fetch applications with related data (already filtered by company_id through interviews)
         const { data: applicationRows, error: applicationError } = await supabase
           .from('applications')
           .select(`
@@ -706,9 +750,11 @@ export const useInterviews = (filters?: FilterOptions) => {
             rating,
             job_id,
             candidate_id,
-            stage_id
+            stage_id,
+            company_id
           `)
-          .in('id', applicationIds);
+          .in('id', applicationIds)
+          .eq('company_id', companyId);
 
         if (applicationError) {
           console.warn('Error fetching applications for interviews:', applicationError);
@@ -830,6 +876,12 @@ export const useClients = (filters?: FilterOptions) => {
       try {
         setIsLoading(true);
         
+        // Get current user's company ID
+        const companyId = await getCurrentUserCompanyId();
+        if (!companyId) {
+          throw new Error('User company not found');
+        }
+        
         const { data: clientRows, error: clientError } = await supabase
           .from('clients')
           .select(`
@@ -854,8 +906,10 @@ export const useClients = (filters?: FilterOptions) => {
             payment_terms,
             contract_details,
             created_at,
-            updated_at
+            updated_at,
+            company_id
           `)
+          .eq('company_id', companyId)
           .order('created_at', { ascending: false });
 
         if (clientError) {

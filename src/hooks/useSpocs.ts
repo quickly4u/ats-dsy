@@ -27,6 +27,9 @@ export type InternalSPOCInput = {
 // Fetch helpers
 const fetchClientsByIds = async (ids: string[]): Promise<Client[]> => {
   if (!ids.length) return [] as Client[];
+  const companyId = await getCurrentUserCompanyId();
+  if (!companyId) return [] as Client[];
+  
   const { data, error } = await supabase
     .from('clients')
     .select(`
@@ -51,9 +54,11 @@ const fetchClientsByIds = async (ids: string[]): Promise<Client[]> => {
       payment_terms,
       contract_details,
       created_at,
-      updated_at
+      updated_at,
+      company_id
     `)
-    .in('id', ids);
+    .in('id', ids)
+    .eq('company_id', companyId);
   if (error) throw error;
   const rows = data || [];
   return rows.map((c: any) => ({
@@ -98,10 +103,14 @@ const fetchClientsByIds = async (ids: string[]): Promise<Client[]> => {
 
 const fetchUsersByIds = async (ids: string[]): Promise<Record<string, User>> => {
   if (!ids.length) return {};
+  const companyId = await getCurrentUserCompanyId();
+  if (!companyId) return {};
+  
   const { data, error } = await supabase
     .from('users')
     .select(`id, email, first_name, last_name, avatar, company_id, is_active, created_at`)
-    .in('id', ids);
+    .in('id', ids)
+    .eq('company_id', companyId);
   if (error) throw error;
   const map: Record<string, User> = {};
   (data || []).forEach((u: any) => {
@@ -139,6 +148,11 @@ export const useExternalSpocs = () => {
     const load = async () => {
       try {
         setIsLoading(true);
+        const companyId = await getCurrentUserCompanyId();
+        if (!companyId) {
+          throw new Error('User company not found');
+        }
+        
         const { data, error } = await supabase
           .from('external_spocs')
           .select(`
@@ -146,6 +160,7 @@ export const useExternalSpocs = () => {
             designation, department, is_primary, avatar, linkedin_url, notes,
             is_active, created_at, updated_at
           `)
+          .eq('company_id', companyId)
           .order('created_at', { ascending: false });
         if (error) throw error;
         const rows = data || [];
@@ -244,9 +259,15 @@ export const useInternalSpocs = () => {
     const load = async () => {
       try {
         setIsLoading(true);
+        const companyId = await getCurrentUserCompanyId();
+        if (!companyId) {
+          throw new Error('User company not found');
+        }
+        
         const { data, error } = await supabase
           .from('internal_spocs')
           .select(`id, company_id, user_id, level, is_active, assigned_at, assigned_by`)
+          .eq('company_id', companyId)
           .order('assigned_at', { ascending: false });
         if (error) throw error;
         const rows = data || [];
