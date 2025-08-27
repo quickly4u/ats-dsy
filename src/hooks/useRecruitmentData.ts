@@ -5,7 +5,8 @@ import type {
   Application, 
   Interview, 
   RecruitmentMetrics,
-  FilterOptions
+  FilterOptions,
+  Experience
 } from '../types';
 import { supabase, getCurrentUserCompanyId } from '../lib/supabase';
 
@@ -230,6 +231,34 @@ export const useCandidates = (filters?: FilterOptions) => {
           }
         }
 
+        // Fetch experiences (including location) and group by candidate
+        let experiencesByCandidate: Record<string, Experience[]> = {};
+        if (candidateIds.length > 0) {
+          const { data: expRows, error: expError } = await supabase
+            .from('candidate_experiences')
+            .select('id, candidate_id, company, title, location, start_date, end_date, description, company_id')
+            .in('candidate_id', candidateIds)
+            .eq('company_id', companyId)
+            .order('start_date', { ascending: false });
+
+          if (!expError && expRows) {
+            experiencesByCandidate = expRows.reduce((acc: Record<string, Experience[]>, row: any) => {
+              const exp: Experience = {
+                id: row.id,
+                company: row.company,
+                title: row.title,
+                location: row.location || undefined,
+                startDate: row.start_date || undefined,
+                endDate: row.end_date || undefined,
+                description: row.description || undefined,
+              };
+              if (!acc[row.candidate_id]) acc[row.candidate_id] = [];
+              acc[row.candidate_id].push(exp);
+              return acc;
+            }, {} as Record<string, Experience[]>);
+          }
+        }
+
         // Transform to our Candidate type
         let result: Candidate[] = (candidateRows || []).map((c: any) => ({
           id: c.id,
@@ -244,6 +273,7 @@ export const useCandidates = (filters?: FilterOptions) => {
           currentTitle: c.current_title || undefined,
           experienceYears: c.experience_years || undefined,
           skills: skillsByCandidate[c.id] || [],
+          experiences: experiencesByCandidate[c.id] || [],
           summary: c.summary || undefined,
           avatar: c.avatar || undefined,
           resumeUrl: c.resume_url || undefined,

@@ -53,7 +53,33 @@ const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClos
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    const experiences = formData.workExperience.map(exp => ({
+      company: exp.company,
+      title: exp.title,
+      location: (exp as any).location || '',
+      startDate: exp.startDate,
+      endDate: exp.endDate,
+      description: exp.description
+    }));
+    const payload: Partial<Candidate> = {
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email,
+      phone: formData.phone || undefined,
+      location: formData.location || undefined,
+      linkedinUrl: formData.linkedinUrl || undefined,
+      portfolioUrl: formData.portfolioUrl || undefined,
+      currentCompany: formData.currentCompany || undefined,
+      currentTitle: formData.currentTitle || undefined,
+      experienceYears: formData.experienceYears ? Number(formData.experienceYears) : undefined,
+      summary: formData.summary || undefined,
+      source: formData.source,
+      skills: formData.skills,
+      tags: formData.tags,
+      gdprConsent: formData.gdprConsent,
+      experiences
+    };
+    onSave(payload);
     onClose();
   };
 
@@ -97,6 +123,7 @@ const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClos
       workExperience: [...prev.workExperience, {
         company: '',
         title: '',
+        location: '',
         startDate: '',
         endDate: '',
         description: ''
@@ -438,6 +465,19 @@ const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClos
                             onChange={(e) => updateWorkExperience(index, 'title', e.target.value)}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             placeholder="Job title"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Location
+                          </label>
+                          <input
+                            type="text"
+                            value={(exp as any).location || ''}
+                            onChange={(e) => updateWorkExperience(index, 'location', e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="City, Country"
                           />
                         </div>
 

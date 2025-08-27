@@ -27,6 +27,13 @@ const CandidateDetailsModal: React.FC<CandidateDetailsModalProps> = ({ candidate
     return <div className="flex items-center space-x-1">{stars}</div>;
   };
 
+  const formatDate = (d?: Date | string) => {
+    if (!d) return '';
+    const date = typeof d === 'string' ? new Date(d) : d;
+    if (isNaN(date.getTime())) return String(d);
+    return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
+  };
+
   return (
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -93,6 +100,39 @@ const CandidateDetailsModal: React.FC<CandidateDetailsModalProps> = ({ candidate
                     </span>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Work Experience */}
+            {candidate.experiences && candidate.experiences.length > 0 && (
+              <div>
+                <h3 className="text-md font-semibold text-gray-900 mb-2">Work Experience</h3>
+                <ul className="space-y-3">
+                  {candidate.experiences.map((exp, idx) => (
+                    <li key={exp.id ?? idx} className="border border-gray-200 rounded-lg p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-gray-900 truncate">
+                            {exp.title}
+                            {exp.company ? <span className="text-gray-600 font-normal"> @ {exp.company}</span> : null}
+                          </div>
+                          {exp.location && (
+                            <div className="text-xs text-gray-600 flex items-center mt-1">
+                              <MapPin size={14} className="mr-1 text-gray-400" />
+                              <span className="truncate">{exp.location}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-600 whitespace-nowrap">
+                          {[formatDate(exp.startDate), formatDate(exp.endDate)].filter(Boolean).join(' - ')}
+                        </div>
+                      </div>
+                      {exp.description && (
+                        <p className="text-sm text-gray-700 mt-2 whitespace-pre-line">{exp.description}</p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 

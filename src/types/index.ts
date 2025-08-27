@@ -72,6 +72,16 @@ export interface Department {
   isActive: boolean;
 }
 
+export interface Experience {
+  id?: string;
+  company: string;
+  title: string;
+  location?: string;
+  startDate?: Date | string;
+  endDate?: Date | string;
+  description?: string;
+}
+
 export interface Candidate {
   id: string;
   email: string;
@@ -85,6 +95,7 @@ export interface Candidate {
   currentTitle?: string;
   experienceYears?: number;
   skills: string[];
+  experiences?: Experience[];
   summary?: string;
   avatar?: string;
   resumeUrl?: string;

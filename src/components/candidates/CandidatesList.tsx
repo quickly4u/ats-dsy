@@ -12,6 +12,7 @@ import {
   MoreVertical
 } from 'lucide-react';
 import { useCandidates } from '../../hooks/useRecruitmentData';
+import { supabase, getCurrentUserCompanyId } from '../../lib/supabase';
 import type { Candidate, FilterOptions } from '../../types';
 import CandidateForm from '../forms/CandidateForm';
 import CandidateDetailsModal from './CandidateDetailsModal';
@@ -28,9 +29,75 @@ const CandidatesList: React.FC = () => {
     setFilters(prev => ({ ...prev, search }));
   };
 
-  const handleSaveCandidate = (candidateData: Partial<Candidate>) => {
-    console.log('Saving candidate:', candidateData);
-    // In real app, this would call an API
+  const handleSaveCandidate = async (candidateData: Partial<Candidate>) => {
+    try {
+      const companyId = await getCurrentUserCompanyId();
+      if (!companyId) throw new Error('User company not found');
+
+      const { experiences = [], skills = [], ...rest } = candidateData;
+
+      // Insert candidate
+      const candidateRow: any = {
+        email: rest.email,
+        first_name: rest.firstName,
+        last_name: rest.lastName,
+        phone: rest.phone ?? null,
+        location: rest.location ?? null,
+        linkedin_url: rest.linkedinUrl ?? null,
+        portfolio_url: rest.portfolioUrl ?? null,
+        current_company: rest.currentCompany ?? null,
+        current_title: rest.currentTitle ?? null,
+        experience_years: typeof rest.experienceYears === 'number' ? rest.experienceYears : null,
+        summary: rest.summary ?? null,
+        avatar: rest.avatar ?? null,
+        resume_url: rest.resumeUrl ?? null,
+        source: rest.source ?? 'manual',
+        rating: rest.rating ?? null,
+        is_blacklisted: rest.isBlacklisted ?? false,
+        gdpr_consent: rest.gdprConsent ?? false,
+        company_id: companyId,
+      };
+
+      const { data: insertedCandidates, error: insertCandidateError } = await supabase
+        .from('candidates')
+        .insert(candidateRow)
+        .select('id')
+        .limit(1);
+
+      if (insertCandidateError) throw insertCandidateError;
+      const candidateId = insertedCandidates?.[0]?.id as string | undefined;
+      if (!candidateId) throw new Error('Failed to create candidate');
+
+      // Insert skills
+      if (skills.length > 0) {
+        const skillRows = skills.map((skill) => ({ candidate_id: candidateId, skill }));
+        const { error: skillsError } = await supabase.from('candidate_skills').insert(skillRows);
+        if (skillsError) throw skillsError;
+      }
+
+      // Insert experiences
+      if (experiences.length > 0) {
+        const expRows = experiences.map((exp) => ({
+          candidate_id: candidateId,
+          company: exp.company || '',
+          title: exp.title || '',
+          location: exp.location ?? null,
+          start_date: exp.startDate ?? null,
+          end_date: exp.endDate ?? null,
+          description: exp.description ?? null,
+          company_id: companyId,
+        }));
+        const { error: expError } = await supabase.from('candidate_experiences').insert(expRows);
+        if (expError) throw expError;
+      }
+
+      // Close form and refresh list
+      setShowCandidateForm(false);
+      setFilters(prev => ({ ...prev }));
+    } catch (err) {
+      console.error('Failed to save candidate:', err);
+      alert('Failed to save candidate');
+    }
   };
 
   if (error) {
