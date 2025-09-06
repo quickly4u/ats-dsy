@@ -21,11 +21,13 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { Application } from '../../types';
+import type { Application, CustomStage } from '../../types';
+import { useCustomStages } from '../../hooks/useCustomStages';
 
 interface ApplicationPipelineProps {
   applications: Application[];
   isLoading: boolean;
+  companyId: string;
   onApplicationMove?: (applicationId: string, newStage: string) => void;
 }
 
@@ -34,7 +36,7 @@ interface DraggableApplicationCardProps {
 }
 
 interface DroppableStageProps {
-  stage: { id: string; name: string; color: string; order: number };
+  stage: CustomStage;
   applications: Application[];
   children: React.ReactNode;
   canAcceptDrop?: boolean;
@@ -161,9 +163,12 @@ const DraggableApplicationCard: React.FC<DraggableApplicationCardProps> = ({ app
   );
 };
 
-const ApplicationPipeline: React.FC<ApplicationPipelineProps> = ({ applications, isLoading, onApplicationMove }) => {
+const ApplicationPipeline: React.FC<ApplicationPipelineProps> = ({ applications, isLoading, companyId, onApplicationMove }) => {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [localApplications, setLocalApplications] = useState<Application[]>(applications);
+  
+  // Fetch custom stages for the company
+  const { stages, isLoading: stagesLoading } = useCustomStages(companyId);
 
   // Update local state when props change
   React.useEffect(() => {
@@ -176,26 +181,39 @@ const ApplicationPipeline: React.FC<ApplicationPipelineProps> = ({ applications,
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
-  // Mock pipeline stages with order index for validation
-  const stages = [
-    { id: '1', name: 'Applied', color: 'bg-blue-500', order: 1 },
-    { id: '2', name: 'Screening', color: 'bg-yellow-500', order: 2 },
-    { id: '3', name: 'Interview', color: 'bg-purple-500', order: 3 },
-    { id: '4', name: 'Assessment', color: 'bg-orange-500', order: 4 },
-    { id: '5', name: 'Final Review', color: 'bg-indigo-500', order: 5 },
-    { id: '6', name: 'Offer', color: 'bg-green-500', order: 6 },
-  ];
 
-  // Helper function to validate stage progression
-  const isValidStageTransition = (fromStage: string, toStage: string): boolean => {
-    const fromStageObj = stages.find(s => s.name === fromStage);
-    const toStageObj = stages.find(s => s.name === toStage);
-    
-    if (!fromStageObj || !toStageObj) return false;
-    
-    // Allow moving to the next stage or staying in the same stage
-    // Prevent moving backward or skipping stages (more than 1 step forward)
-    return toStageObj.order >= fromStageObj.order && toStageObj.order <= fromStageObj.order + 1;
+  // Build helper maps for fast lookups
+  const nameToStage = React.useMemo(() => {
+    const m = new Map<string, CustomStage>();
+    for (const s of stages) m.set(s.name, s);
+    return m;
+  }, [stages]);
+
+  const childrenByParent = React.useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const s of stages) {
+      if (s.parentId) {
+        const arr = m.get(s.parentId) || [];
+        arr.push(s.id);
+        m.set(s.parentId, arr);
+      }
+    }
+    return m;
+  }, [stages]);
+
+  const hasHierarchy = React.useMemo(() => stages.some(s => s.parentId), [stages]);
+
+  // Validate stage progression using parent-child when present; otherwise fallback to orderIndex forward-only
+  const isValidStageTransition = (fromStageName: string, toStageName: string): boolean => {
+    if (fromStageName === toStageName) return true;
+    const from = nameToStage.get(fromStageName);
+    const to = nameToStage.get(toStageName);
+    if (!from || !to) return false;
+    if (!hasHierarchy) {
+      return to.orderIndex >= from.orderIndex;
+    }
+    const children = childrenByParent.get(from.id) || [];
+    return children.includes(to.id);
   };
 
   // Group applications by stage
@@ -209,7 +227,7 @@ const ApplicationPipeline: React.FC<ApplicationPipelineProps> = ({ applications,
   };
 
   // Helper function to determine if a stage can accept the currently dragged application
-  const canStageAcceptDrop = (stage: { name: string }, draggedApp: Application | null): boolean => {
+  const canStageAcceptDrop = (stage: CustomStage, draggedApp: Application | null): boolean => {
     if (!draggedApp) return true;
     return isValidStageTransition(draggedApp.currentStage.name, stage.name);
   };
@@ -278,11 +296,11 @@ const ApplicationPipeline: React.FC<ApplicationPipelineProps> = ({ applications,
 
 
 
-  if (isLoading) {
+  if (isLoading || stagesLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6">
-        {stages.map((stage) => (
-          <div key={stage.id} className="bg-gray-50 rounded-lg p-4">
+        {[...Array(6)].map((_, index) => (
+          <div key={index} className="bg-gray-50 rounded-lg p-4">
             <div className="h-6 bg-gray-200 rounded mb-4 animate-pulse"></div>
             {[...Array(3)].map((_, i) => (
               <div key={i} className="bg-white rounded-lg p-4 mb-3 animate-pulse">

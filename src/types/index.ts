@@ -133,6 +133,22 @@ export interface JobStage {
   isDefault: boolean;
 }
 
+export interface CustomStage {
+  id: string;
+  companyId: string;
+  parentId?: string | null;
+  name: string;
+  description?: string;
+  color: string;
+  orderIndex: number;
+  stageType: string;
+  isDefault: boolean;
+  isActive: boolean;
+  canBeDeleted: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface Interview {
   id: string;
   application: Application;

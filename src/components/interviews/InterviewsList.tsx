@@ -13,22 +13,27 @@ import {
   MoreVertical
 } from 'lucide-react';
 import { useInterviews } from '../../hooks/useRecruitmentData';
-import type { Interview, FilterOptions } from '../../types';
+import type { FilterOptions } from '../../types';
 import InterviewForm from '../forms/InterviewForm';
 
 const InterviewsList: React.FC = () => {
   const [filters, setFilters] = useState<FilterOptions>({});
   const [showFilters, setShowFilters] = useState(false);
   const [showInterviewForm, setShowInterviewForm] = useState(false);
-  const { interviews, isLoading, error } = useInterviews(filters);
+  const { interviews, isLoading, error, createInterview, refetch } = useInterviews(filters);
 
   const handleSearch = (search: string) => {
     setFilters(prev => ({ ...prev, search }));
   };
 
-  const handleSaveInterview = (interviewData: Partial<Interview>) => {
-    console.log('Saving interview:', interviewData);
-    // In real app, this would call an API
+  const handleSaveInterview = async (interviewData: any) => {
+    const res = await createInterview(interviewData);
+    if ((res as any)?.error) {
+      console.error('Failed to create interview:', (res as any).error);
+      return;
+    }
+    await refetch();
+    setShowInterviewForm(false);
   };
 
   const formatDate = (date: Date) => {

@@ -2,23 +2,35 @@ import React, { useState } from 'react';
 import { 
   X, 
   Save, 
-  Calendar, 
-  Clock, 
   Video, 
-  MapPin, 
   Users,
-  FileText,
   Plus,
   Trash2
 } from 'lucide-react';
-import type { Interview, Application, User } from '../../types';
+import type { Interview, Application } from '../../types';
+import { useApplications, useTeamMembers } from '../../hooks/useRecruitmentData';
+
+type InterviewStatus = 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
+
+interface CreateInterviewPayload {
+  applicationId: string;
+  title: string;
+  description?: string;
+  scheduledAt: Date;
+  durationMinutes: number;
+  location?: string;
+  meetingUrl?: string;
+  status: InterviewStatus;
+  interviewRound: number;
+  participants: { userId: string; role: string; isRequired: boolean }[];
+}
 
 interface InterviewFormProps {
   interview?: Interview;
   application?: Application;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (interviewData: Partial<Interview>) => void;
+  onSave: (interviewData: CreateInterviewPayload) => void;
 }
 
 const InterviewForm: React.FC<InterviewFormProps> = ({ 
@@ -43,25 +55,9 @@ const InterviewForm: React.FC<InterviewFormProps> = ({
     participants: [] as { userId: string; role: string; isRequired: boolean }[]
   });
 
-  // Mock data - in real app, these would come from API
-  const mockApplications = [
-    { 
-      id: '1', 
-      candidate: { firstName: 'Sarah', lastName: 'Johnson' },
-      job: { title: 'Senior Software Engineer' }
-    },
-    { 
-      id: '2', 
-      candidate: { firstName: 'Michael', lastName: 'Chen' },
-      job: { title: 'Product Marketing Manager' }
-    }
-  ];
-
-  const mockUsers = [
-    { id: '1', firstName: 'John', lastName: 'Doe', email: 'john@company.com' },
-    { id: '2', firstName: 'Jane', lastName: 'Smith', email: 'jane@company.com' },
-    { id: '3', firstName: 'Mike', lastName: 'Johnson', email: 'mike@company.com' }
-  ];
+  // Real data hooks
+  const { applications, isLoading: appsLoading, error: appsError } = useApplications();
+  const { teamMembers, isLoading: usersLoading, error: usersError } = useTeamMembers();
 
   const interviewTypes = [
     { value: 'phone', label: 'Phone Screening' },
@@ -75,8 +71,16 @@ const InterviewForm: React.FC<InterviewFormProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave({
-      ...formData,
-      scheduledAt: new Date(formData.scheduledAt)
+      applicationId: formData.applicationId,
+      title: formData.title,
+      description: formData.description,
+      scheduledAt: new Date(formData.scheduledAt),
+      durationMinutes: formData.durationMinutes,
+      location: formData.location,
+      meetingUrl: formData.meetingUrl,
+      status: formData.status as InterviewStatus,
+      interviewRound: formData.interviewRound,
+      participants: formData.participants,
     });
     onClose();
   };
@@ -114,7 +118,7 @@ const InterviewForm: React.FC<InterviewFormProps> = ({
 
   if (!isOpen) return null;
 
-  const selectedApplication = mockApplications.find(app => app.id === formData.applicationId);
+  const selectedApplication = applications.find(app => app.id === formData.applicationId);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -148,7 +152,13 @@ const InterviewForm: React.FC<InterviewFormProps> = ({
                   disabled={!!application} // Disable if application is pre-selected
                 >
                   <option value="">Select Application</option>
-                  {mockApplications.map(app => (
+                  {appsLoading && (
+                    <option value="" disabled>Loading applications...</option>
+                  )}
+                  {appsError && (
+                    <option value="" disabled>Error loading applications</option>
+                  )}
+                  {!appsLoading && !appsError && applications.map(app => (
                     <option key={app.id} value={app.id}>
                       {app.candidate.firstName} {app.candidate.lastName} - {app.job.title}
                     </option>
@@ -247,7 +257,7 @@ const InterviewForm: React.FC<InterviewFormProps> = ({
                   </label>
                   <select
                     value={formData.status}
-                    onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value }))}
+                    onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as InterviewStatus }))}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="scheduled">Scheduled</option>
@@ -354,7 +364,13 @@ const InterviewForm: React.FC<InterviewFormProps> = ({
                             className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                           >
                             <option value="">Select Member</option>
-                            {mockUsers.map(user => (
+                            {usersLoading && (
+                              <option value="" disabled>Loading team members...</option>
+                            )}
+                            {usersError && (
+                              <option value="" disabled>Error loading team members</option>
+                            )}
+                            {!usersLoading && !usersError && teamMembers.map((user: any) => (
                               <option key={user.id} value={user.id}>
                                 {user.firstName} {user.lastName}
                               </option>

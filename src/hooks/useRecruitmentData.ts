@@ -12,6 +12,26 @@ import { supabase, getCurrentUserCompanyId } from '../lib/supabase';
 
 // Mock data generators removed - now using real Supabase data
 
+// Local types for interview creation
+interface InterviewParticipantInput {
+  userId: string;
+  role: string;
+  isRequired: boolean;
+}
+
+interface CreateInterviewInput {
+  applicationId: string;
+  title: string;
+  description?: string;
+  scheduledAt: Date;
+  durationMinutes: number;
+  location?: string;
+  meetingUrl?: string;
+  status?: 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
+  interviewRound?: number;
+  participants?: InterviewParticipantInput[];
+}
+
 export const useJobs = (filters?: FilterOptions) => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -131,6 +151,10 @@ export const useJobs = (filters?: FilterOptions) => {
           );
         }
         if (filters?.status?.length) {
+          result = result.filter(job => filters.status!.includes(job.status));
+        } else if (filters?.status) {
+          // If status filter is provided as array but empty, show no results
+          // If status filter is provided as specific values, use them
           result = result.filter(job => filters.status!.includes(job.status));
         }
         if (filters?.employmentType?.length) {
@@ -450,7 +474,7 @@ export const useApplications = (filters?: FilterOptions) => {
 
         // Fetch stages (already filtered by company_id through applications)
         const { data: stageRows, error: stageError } = await supabase
-          .from('stages')
+          .from('custom_stages')
           .select(`
             id,
             name,
@@ -461,7 +485,8 @@ export const useApplications = (filters?: FilterOptions) => {
             company_id
           `)
           .in('id', stageIds)
-          .eq('company_id', companyId);
+          .eq('company_id', companyId)
+          .eq('is_active', true);
 
         if (stageError) {
           console.warn('Error fetching stages:', stageError);
@@ -725,6 +750,7 @@ export const useInterviews = (filters?: FilterOptions) => {
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     const fetchInterviews = async () => {
@@ -890,9 +916,142 @@ export const useInterviews = (filters?: FilterOptions) => {
     };
 
     fetchInterviews();
-  }, [filters]);
+  }, [filters, reloadToken]);
 
-  return { interviews, isLoading, error };
+  const refetch = () => setReloadToken((t) => t + 1);
+
+  const createInterview = async (payload: CreateInterviewInput) => {
+    try {
+      const companyId = await getCurrentUserCompanyId();
+      if (!companyId) throw new Error('User company not found');
+
+      // Merge meetingUrl into location if provided (DB has no meeting_url column)
+      const location = payload.location || (payload.meetingUrl ? `Video: ${payload.meetingUrl}` : undefined);
+
+      const insertData: any = {
+        title: payload.title,
+        description: payload.description || null,
+        scheduled_at: payload.scheduledAt?.toISOString?.() ? payload.scheduledAt : new Date(payload.scheduledAt),
+        duration_minutes: payload.durationMinutes,
+        location: location || null,
+        status: payload.status || 'scheduled',
+        interview_round: payload.interviewRound ?? 1,
+        application_id: payload.applicationId,
+        company_id: companyId,
+      };
+
+      const { data: createdRows, error: insertError } = await supabase
+        .from('interviews')
+        .insert(insertData)
+        .select('id')
+        .single();
+
+      if (insertError) throw insertError;
+
+      const interviewId = createdRows?.id as string;
+
+      // Best-effort insert of participants if provided
+      if (interviewId && payload.participants && payload.participants.length > 0) {
+        try {
+          const participantRows = payload.participants
+            .filter((p) => p.userId)
+            .map((p) => ({
+              interview_id: interviewId,
+              user_id: p.userId,
+              role: p.role || 'interviewer',
+              is_required: !!p.isRequired,
+              status: 'pending',
+              // company_id may or may not exist on this table; omit to avoid schema mismatch
+            }));
+
+          if (participantRows.length > 0) {
+            const { error: participantsError } = await supabase
+              .from('interview_participants')
+              .insert(participantRows);
+
+            if (participantsError) {
+              // Log and continue; do not fail the whole operation
+              console.warn('Failed to insert interview participants:', participantsError.message);
+            }
+          }
+        } catch (innerErr) {
+          console.warn('Participants insert skipped due to error:', innerErr);
+        }
+      }
+
+      // Trigger a refresh
+      refetch();
+      return { id: interviewId };
+    } catch (err: any) {
+      console.error('Error creating interview:', err);
+      return { error: err.message as string };
+    }
+  };
+
+  return { interviews, isLoading, error, refetch, createInterview };
+};
+
+export const useStages = () => {
+  const [stages, setStages] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchStages = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Get current user's company ID
+        const companyId = await getCurrentUserCompanyId();
+        if (!companyId) {
+          throw new Error('User company not found');
+        }
+        
+        // Fetch stages from Supabase filtered by company_id
+        const { data: stageRows, error: stageError } = await supabase
+          .from('custom_stages')
+          .select(`
+            id,
+            name,
+            description,
+            order_index,
+            stage_type,
+            is_default,
+            company_id
+          `)
+          .eq('company_id', companyId)
+          .eq('is_active', true)
+          .order('order_index', { ascending: true });
+
+        if (stageError) {
+          throw stageError;
+        }
+
+        const result = (stageRows || []).map((stage: any) => ({
+          id: stage.id,
+          name: stage.name,
+          description: stage.description,
+          orderIndex: stage.order_index,
+          stageType: stage.stage_type,
+          isDefault: !!stage.is_default,
+          companyId: stage.company_id
+        }));
+
+        setStages(result);
+        setError(null);
+      } catch (err: any) {
+        console.error('Error fetching stages:', err);
+        setError(`Failed to fetch stages: ${err.message}`);
+        setStages([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchStages();
+  }, []);
+
+  return { stages, isLoading, error };
 };
 
 export const useClients = (filters?: FilterOptions) => {
@@ -1030,6 +1189,12 @@ export const useTeamMembers = (filters?: FilterOptions) => {
       try {
         setIsLoading(true);
         
+        // Get current user's company ID for scoping
+        const companyId = await getCurrentUserCompanyId();
+        if (!companyId) {
+          throw new Error('User company not found');
+        }
+
         const { data: userRows, error: userError } = await supabase
           .from('users')
           .select(`
@@ -1041,6 +1206,7 @@ export const useTeamMembers = (filters?: FilterOptions) => {
             is_active,
             created_at
           `)
+          .eq('company_id', companyId)
           .order('created_at', { ascending: false });
 
         if (userError) {

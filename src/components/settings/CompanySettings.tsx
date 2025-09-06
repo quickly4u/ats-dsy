@@ -2,19 +2,15 @@ import React, { useState } from 'react';
 import { 
   Building, 
   Save, 
-  Upload, 
-  Globe, 
-  Mail, 
-  Phone, 
-  MapPin,
   Users,
-  CreditCard,
-  Settings,
   Shield,
   Bell,
   Palette,
-  Database
+  Database,
+  GitBranch
 } from 'lucide-react';
+import StageManagement from './StageManagement';
+import { getCurrentUserCompanyId } from '../../lib/supabase';
 
 interface CompanySettings {
   general: {
@@ -66,6 +62,7 @@ interface CompanySettings {
 
 const CompanySettings: React.FC = () => {
   const [activeTab, setActiveTab] = useState('general');
+  const [companyId, setCompanyId] = useState<string>('');
   const [settings, setSettings] = useState<CompanySettings>({
     general: {
       name: 'TechCorp Inc.',
@@ -114,10 +111,19 @@ const CompanySettings: React.FC = () => {
     }
   });
 
+  React.useEffect(() => {
+    const fetchCompanyId = async () => {
+      const id = await getCurrentUserCompanyId();
+      if (id) setCompanyId(id);
+    };
+    fetchCompanyId();
+  }, []);
+
   const tabs = [
     { id: 'general', label: 'General', icon: Building },
     { id: 'branding', label: 'Branding', icon: Palette },
     { id: 'recruitment', label: 'Recruitment', icon: Users },
+    { id: 'stages', label: 'Pipeline Stages', icon: GitBranch },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'privacy', label: 'Privacy & Security', icon: Shield },
     { id: 'integrations', label: 'Integrations', icon: Database }
@@ -477,6 +483,15 @@ const CompanySettings: React.FC = () => {
         return renderGeneralSettings();
       case 'recruitment':
         return renderRecruitmentSettings();
+      case 'stages':
+        return companyId ? (
+          <StageManagement companyId={companyId} />
+        ) : (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-3 text-sm text-gray-600">Loading company context...</p>
+          </div>
+        );
       case 'branding':
         return (
           <div className="text-center py-12">
@@ -541,23 +556,24 @@ const CompanySettings: React.FC = () => {
         </button>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Sidebar Navigation */}
-        <div className="lg:w-64 flex-shrink-0">
-          <nav className="space-y-1">
+      <div className="space-y-4">
+        {/* Horizontal Tabs */}
+        <div className="bg-white rounded-lg border border-gray-200 p-2">
+          <nav className="flex items-center gap-2 overflow-x-auto">
             {tabs.map((tab) => {
               const Icon = tab.icon;
+              const active = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center space-x-3 px-3 py-2 text-left rounded-lg transition-colors ${
-                    activeTab === tab.id
-                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                      : 'text-gray-700 hover:bg-gray-50'
+                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-full whitespace-nowrap transition-colors border ${
+                    active
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'text-gray-700 border-transparent hover:bg-gray-50 hover:border-gray-200'
                   }`}
                 >
-                  <Icon size={20} className={activeTab === tab.id ? 'text-blue-600' : 'text-gray-400'} />
+                  <Icon size={18} className={active ? 'text-white' : 'text-gray-400'} />
                   <span className="font-medium">{tab.label}</span>
                 </button>
               );
@@ -565,11 +581,9 @@ const CompanySettings: React.FC = () => {
           </nav>
         </div>
 
-        {/* Main Content */}
-        <div className="flex-1">
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            {renderCurrentTab()}
-          </div>
+        {/* Content */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          {renderCurrentTab()}
         </div>
       </div>
     </div>

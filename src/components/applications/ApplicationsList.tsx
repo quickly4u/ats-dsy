@@ -7,6 +7,7 @@ import {
   Plus
 } from 'lucide-react';
 import { useApplications } from '../../hooks/useRecruitmentData';
+import { supabase, getCurrentUserCompanyId } from '../../lib/supabase';
 import type { Application, FilterOptions } from '../../types';
 import ApplicationCard from './ApplicationCard';
 import ApplicationPipeline from './ApplicationPipeline';
@@ -18,7 +19,19 @@ const ApplicationsList: React.FC = () => {
   const [viewMode, setViewMode] = useState<'list' | 'pipeline'>('pipeline');
   const [selectedApplications, setSelectedApplications] = useState<Set<string>>(new Set());
   const [showApplicationForm, setShowApplicationForm] = useState(false);
+  const [companyId, setCompanyId] = useState<string>('');
+  
   const { applications, isLoading, error } = useApplications(filters);
+  // Stages are fetched inside ApplicationPipeline and via explicit queries when needed.
+
+  // Get company ID on component mount
+  React.useEffect(() => {
+    const getCompanyId = async () => {
+      const id = await getCurrentUserCompanyId();
+      if (id) setCompanyId(id);
+    };
+    getCompanyId();
+  }, []);
 
   const handleSearch = (search: string) => {
     setFilters(prev => ({ ...prev, search }));
@@ -34,9 +47,105 @@ const ApplicationsList: React.FC = () => {
     setSelectedApplications(newSelected);
   };
 
-  const handleSaveApplication = (applicationData: Partial<Application>) => {
-    console.log('Saving application:', applicationData);
-    // In real app, this would call an API
+  const handleSaveApplication = async (applicationData: Partial<Application>) => {
+    try {
+      const companyId = await getCurrentUserCompanyId();
+      if (!companyId) {
+        alert('Unable to determine your company. Please log in again.');
+        return;
+      }
+
+      // Determine stage to use: selected by user or default "Applied"
+      let stageIdToUse = (applicationData as any).stageId as string | undefined;
+      if (!stageIdToUse) {
+        const { data: defaultStage, error: stageError } = await supabase
+          .from('custom_stages')
+          .select('id')
+          .eq('company_id', companyId)
+          .eq('stage_type', 'application')
+          .eq('is_default', true)
+          .eq('is_active', true)
+          .single();
+
+        if (stageError || !defaultStage) {
+          console.error('Error fetching default stage:', stageError);
+          alert('Unable to find default application stage. Please contact support.');
+          return;
+        }
+        stageIdToUse = defaultStage.id;
+      }
+
+      const { data, error } = await supabase
+        .from('applications')
+        .insert({
+          job_id: (applicationData as any).jobId,
+          candidate_id: (applicationData as any).candidateId,
+          stage_id: stageIdToUse,
+          status: applicationData.status || 'new',
+          score: applicationData.score,
+          rating: applicationData.rating,
+          notes: applicationData.notes,
+          cover_letter: (applicationData as any).coverLetter,
+          applied_at: new Date().toISOString(),
+          company_id: companyId
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating application:', error);
+        alert('Failed to create application. Please try again.');
+        return;
+      }
+
+      console.log('Application created successfully:', data);
+      alert('Application created successfully!');
+      
+      // Refresh the applications list
+      window.location.reload();
+    } catch (err) {
+      console.error('Error saving application:', err);
+      alert('Failed to create application. Please try again.');
+    }
+  };
+
+  // Persist pipeline drag-and-drop moves to the backend
+  const handleApplicationMove = async (applicationId: string, newStageName: string) => {
+    try {
+      const companyId = await getCurrentUserCompanyId();
+      if (!companyId) return;
+
+      // Find the target stage ID for this company by name
+      const { data: stageRow, error: stageErr } = await supabase
+        .from('custom_stages')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('name', newStageName)
+        .eq('is_active', true)
+        .single();
+
+      if (stageErr || !stageRow) {
+        console.error('Failed finding stage by name', newStageName, stageErr);
+        return;
+      }
+
+      // Update the application with the new stage_id
+      const { error: updateErr } = await supabase
+        .from('applications')
+        .update({ stage_id: stageRow.id })
+        .eq('id', applicationId)
+        .eq('company_id', companyId);
+
+      if (updateErr) {
+        console.error('Failed updating application stage', updateErr);
+        return;
+      }
+
+      // No hard reload; ApplicationPipeline already updated local UI optimistically.
+      // If needed later, we can add a lightweight refetch hook here.
+    } catch (e) {
+      console.error('Unexpected error while moving application:', e);
+    }
   };
 
 
@@ -183,7 +292,12 @@ const ApplicationsList: React.FC = () => {
 
       {/* Applications Display */}
       {viewMode === 'pipeline' ? (
-        <ApplicationPipeline applications={applications} isLoading={isLoading} />
+        <ApplicationPipeline 
+          applications={applications} 
+          isLoading={isLoading} 
+          companyId={companyId}
+          onApplicationMove={handleApplicationMove} 
+        />
       ) : (
         <div className="space-y-4">
           {isLoading ? (

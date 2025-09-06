@@ -8,10 +8,12 @@ import {
   Trash2
 } from 'lucide-react';
 import type { Application } from '../../types';
+import { useJobs, useCandidates, useStages } from '../../hooks/useRecruitmentData';
 
 type FormData = {
   jobId: string;
   candidateId: string;
+  stageId: string;
   status: 'new' | 'in-progress' | 'rejected' | 'hired' | 'withdrawn';
   coverLetter: string;
   score: string;
@@ -37,6 +39,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
   const [formData, setFormData] = useState<FormData>({
     jobId: application?.job?.id || '',
     candidateId: application?.candidate?.id || '',
+    stageId: application?.currentStage?.id || '',
     status: (application?.status ?? 'new') as FormData['status'],
     coverLetter: application?.coverLetter || '',
     score: application?.score !== undefined && application?.score !== null ? String(application.score) : '',
@@ -48,18 +51,10 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
 
   const [currentTag, setCurrentTag] = useState('');
 
-  // Mock data - in real app, these would come from API
-  const mockJobs = [
-    { id: '1', title: 'Senior Software Engineer', client: { name: 'TechCorp' } },
-    { id: '2', title: 'Product Marketing Manager', client: { name: 'FinanceFirst' } },
-    { id: '3', title: 'UX Designer', client: { name: 'HealthTech' } }
-  ];
-
-  const mockCandidates = [
-    { id: '1', firstName: 'Sarah', lastName: 'Johnson', email: 'sarah@email.com' },
-    { id: '2', firstName: 'Michael', lastName: 'Chen', email: 'michael@email.com' },
-    { id: '3', firstName: 'Emily', lastName: 'Davis', email: 'emily@email.com' }
-  ];
+  // Fetch company-specific jobs and candidates
+  const { jobs, isLoading: jobsLoading, error: jobsError } = useJobs();
+  const { candidates, isLoading: candidatesLoading, error: candidatesError } = useCandidates();
+  const { stages, isLoading: stagesLoading, error: stagesError } = useStages();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,8 +108,9 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
 
   if (!isOpen) return null;
 
-  const selectedJob = mockJobs.find(job => job.id === formData.jobId);
-  const selectedCandidate = mockCandidates.find(candidate => candidate.id === formData.candidateId);
+  const selectedJob = jobs.find(job => job.id === formData.jobId);
+  const selectedCandidate = candidates.find(candidate => candidate.id === formData.candidateId);
+  const selectedStage = stages.find(stage => stage.id === formData.stageId);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -146,17 +142,20 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
                     value={formData.jobId}
                     onChange={(e) => setFormData(prev => ({ ...prev, jobId: e.target.value }))}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={jobsLoading}
                   >
-                    <option value="">Select Job</option>
-                    {mockJobs.map(job => (
+                    <option value="">
+                      {jobsLoading ? 'Loading jobs...' : jobsError ? 'Error loading jobs' : 'Select Job'}
+                    </option>
+                    {!jobsLoading && !jobsError && jobs.map(job => (
                       <option key={job.id} value={job.id}>
-                        {job.title} - {job.client.name}
+                        {job.title} - {job.client?.name || 'No Client'}
                       </option>
                     ))}
                   </select>
                   {selectedJob && (
                     <p className="mt-1 text-sm text-gray-500">
-                      Client: {selectedJob.client.name}
+                      Client: {selectedJob.client?.name || 'No Client'} | Status: {selectedJob.status}
                     </p>
                   )}
                 </div>
@@ -170,9 +169,12 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
                     value={formData.candidateId}
                     onChange={(e) => setFormData(prev => ({ ...prev, candidateId: e.target.value }))}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={candidatesLoading}
                   >
-                    <option value="">Select Candidate</option>
-                    {mockCandidates.map(candidate => (
+                    <option value="">
+                      {candidatesLoading ? 'Loading candidates...' : candidatesError ? 'Error loading candidates' : 'Select Candidate'}
+                    </option>
+                    {!candidatesLoading && !candidatesError && candidates.map(candidate => (
                       <option key={candidate.id} value={candidate.id}>
                         {candidate.firstName} {candidate.lastName} ({candidate.email})
                       </option>
@@ -180,7 +182,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
                   </select>
                   {selectedCandidate && (
                     <p className="mt-1 text-sm text-gray-500">
-                      Email: {selectedCandidate.email}
+                      Email: {selectedCandidate.email} | Experience: {selectedCandidate.experienceYears || 'N/A'} years
                     </p>
                   )}
                 </div>
@@ -188,6 +190,33 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
 
               {/* Application Details */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Stage *
+                  </label>
+                  <select
+                    required
+                    value={formData.stageId}
+                    onChange={(e) => setFormData(prev => ({ ...prev, stageId: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={stagesLoading}
+                  >
+                    <option value="">
+                      {stagesLoading ? 'Loading stages...' : stagesError ? 'Error loading stages' : 'Select Stage'}
+                    </option>
+                    {!stagesLoading && !stagesError && stages.map(stage => (
+                      <option key={stage.id} value={stage.id}>
+                        {stage.name} {stage.isDefault ? '(Default)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedStage && (
+                    <p className="mt-1 text-sm text-gray-500">
+                      Type: {selectedStage.stageType} | Order: {selectedStage.orderIndex}
+                    </p>
+                  )}
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Status
@@ -202,24 +231,6 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
                     <option value="rejected">Rejected</option>
                     <option value="hired">Hired</option>
                     <option value="withdrawn">Withdrawn</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Rating (1-5)
-                  </label>
-                  <select
-                    value={formData.rating}
-                    onChange={(e) => setFormData(prev => ({ ...prev, rating: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">No Rating</option>
-                    <option value="1">1 Star</option>
-                    <option value="2">2 Stars</option>
-                    <option value="3">3 Stars</option>
-                    <option value="4">4 Stars</option>
-                    <option value="5">5 Stars</option>
                   </select>
                 </div>
               </div>
