@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   User, 
   Plus, 
@@ -9,13 +9,15 @@ import {
   MapPin,
   Eye,
   Edit,
-  MoreVertical
+  MoreVertical,
+  FileText
 } from 'lucide-react';
 import { useCandidates } from '../../hooks/useRecruitmentData';
 import { supabase, getCurrentUserCompanyId } from '../../lib/supabase';
 import type { Candidate, FilterOptions } from '../../types';
 import CandidateForm from '../forms/CandidateForm';
 import CandidateDetailsModal from './CandidateDetailsModal';
+import CandidateFileManager from './CandidateFileManager';
 
 const CandidatesList: React.FC = () => {
   const [filters, setFilters] = useState<FilterOptions>({});
@@ -24,6 +26,19 @@ const CandidatesList: React.FC = () => {
   const { candidates, isLoading, error } = useCandidates(filters);
   const [showCandidateDetails, setShowCandidateDetails] = useState(false);
   const [activeCandidate, setActiveCandidate] = useState<Candidate | undefined>(undefined);
+  const [showFileManager, setShowFileManager] = useState(false);
+  const [fileManagerCandidate, setFileManagerCandidate] = useState<Candidate | undefined>(undefined);
+  const [userCompanyId, setUserCompanyId] = useState<string>('');
+
+  useEffect(() => {
+    const fetchCompanyId = async () => {
+      const companyId = await getCurrentUserCompanyId();
+      if (companyId) {
+        setUserCompanyId(companyId);
+      }
+    };
+    fetchCompanyId();
+  }, []);
 
   const handleSearch = (search: string) => {
     setFilters(prev => ({ ...prev, search }));
@@ -221,11 +236,22 @@ const CandidatesList: React.FC = () => {
                   <button
                     className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     onClick={() => { setActiveCandidate(candidate); setShowCandidateDetails(true); }}
+                    title="View Details"
                   >
                     <Eye size={16} />
                   </button>
-                  <button className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
+                  <button 
+                    className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                    title="Edit Candidate"
+                  >
                     <Edit size={16} />
+                  </button>
+                  <button
+                    className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                    onClick={() => { setFileManagerCandidate(candidate); setShowFileManager(true); }}
+                    title="Manage Files"
+                  >
+                    <FileText size={16} />
                   </button>
                 </div>
                 
@@ -265,6 +291,16 @@ const CandidatesList: React.FC = () => {
       onClose={() => setShowCandidateForm(false)}
       onSave={handleSaveCandidate}
     />
+
+    {/* File Manager Modal */}
+    {fileManagerCandidate && (
+      <CandidateFileManager
+        candidateId={fileManagerCandidate.id}
+        companyId={userCompanyId}
+        isOpen={showFileManager}
+        onClose={() => { setShowFileManager(false); setFileManagerCandidate(undefined); }}
+      />
+    )}
     </>
   );
 };

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
+import { useToast } from './hooks/useToast';
 import AuthProvider from './components/auth/AuthProvider';
 import LoginForm from './components/auth/LoginForm';
 import SignupForm from './components/auth/SignupForm';
@@ -18,9 +19,12 @@ import CompanySettings from './components/settings/CompanySettings';
 import SystemSettings from './components/settings/SystemSettings';
 import ClientsList from './components/clients/ClientsList';
 import SPOCManagement from './components/clients/SPOCManagement';
+import ErrorBoundary from './components/common/ErrorBoundary';
+import ToastContainer from './components/common/ToastContainer';
 
 const AppContent: React.FC = () => {
   const { isLoading, isAuthenticated } = useAuth();
+  const { toasts, removeToast } = useToast();
   const location = useLocation();
   const [showLogin, setShowLogin] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
@@ -110,43 +114,48 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="h-screen flex bg-gray-50">
-      {/* Sidebar */}
-      <Sidebar 
-        activeSection={getActiveSection()} 
-      />
-      
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <Header 
-          title={getSectionTitle()}
-          subtitle={getSectionSubtitle()}
-          showSearch={['jobs', 'candidates', 'applications'].includes(getActiveSection())}
+    <ErrorBoundary>
+      <div className="h-screen flex bg-gray-50">
+        {/* Sidebar */}
+        <Sidebar 
+          activeSection={getActiveSection()} 
         />
         
-        {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto bg-gray-50">
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/clients" element={<ClientsList />} />
-            <Route path="/spocs" element={<SPOCManagement />} />
-            <Route path="/jobs" element={<JobsList />} />
-            <Route path="/candidates" element={<CandidatesList />} />
-            <Route path="/applications" element={<ApplicationsList />} />
-            <Route path="/interviews" element={<InterviewsList />} />
-            <Route path="/reports" element={<ReportsList />} />
-            <Route path="/team" element={<TeamList />} />
-            <Route path="/company" element={<CompanySettings />} />
-            <Route path="/settings" element={<SystemSettings />} />
-            <Route path="/login" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/signup" element={<Navigate to="/dashboard" replace />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
-        </main>
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Header */}
+          <Header 
+            title={getSectionTitle()}
+            subtitle={getSectionSubtitle()}
+            showSearch={['jobs', 'candidates', 'applications'].includes(getActiveSection())}
+          />
+          
+          {/* Main Content Area */}
+          <main className="flex-1 overflow-y-auto bg-gray-50">
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/clients" element={<ClientsList />} />
+              <Route path="/spocs" element={<SPOCManagement />} />
+              <Route path="/jobs" element={<JobsList />} />
+              <Route path="/candidates" element={<CandidatesList />} />
+              <Route path="/applications" element={<ApplicationsList />} />
+              <Route path="/interviews" element={<InterviewsList />} />
+              <Route path="/reports" element={<ReportsList />} />
+              <Route path="/team" element={<TeamList />} />
+              <Route path="/company" element={<CompanySettings />} />
+              <Route path="/settings" element={<SystemSettings />} />
+              <Route path="/login" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/signup" element={<Navigate to="/dashboard" replace />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </main>
+        </div>
+        
+        {/* Toast Notifications */}
+        <ToastContainer toasts={toasts} onRemoveToast={removeToast} />
       </div>
-    </div>
+    </ErrorBoundary>
   );
 };
 

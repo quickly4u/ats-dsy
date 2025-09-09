@@ -1,25 +1,21 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { 
-  Users, 
-  Plus, 
-  Search, 
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Users,
+  Plus,
+  Search,
   Filter,
   Mail,
   Phone,
-  Building2,
   User,
   UserCheck,
-  MoreVertical,
   Edit,
   Trash2,
-  MessageSquare,
-  Linkedin,
   CheckCircle,
   Star,
 } from 'lucide-react';
 import SPOCForm from '../forms/SPOCForm';
 import { useClients } from '../../hooks/useRecruitmentData';
-import { useExternalSpocs, useInternalSpocs } from '../../hooks/useSpocs';
+import { useContacts } from '../../hooks/useContacts';
 import { supabase, getCurrentUserCompanyId } from '../../lib/supabase';
 
 interface SPOCManagementProps {
@@ -27,15 +23,13 @@ interface SPOCManagementProps {
   initialClientId?: string;
 }
 
-// Local type for team members list in the form
 type TeamMemberOption = { id: string; firstName: string; lastName: string; email: string };
 
 const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external', initialClientId }) => {
   const [activeTab, setActiveTab] = useState<'external' | 'internal'>(initialTab);
   const { clients: allClients, isLoading: clientsLoading } = useClients();
   const clientsOptions = useMemo(() => (allClients || []).map((c: any) => ({ id: c.id, name: c.name })), [allClients]);
-  const { externalSpocs, isLoading: externalLoading, error: externalError, createExternal } = useExternalSpocs();
-  const { internalSpocs, isLoading: internalLoading, error: internalError, createInternal } = useInternalSpocs();
+  const { externalContacts, internalContacts, stats, isLoading, error, createContact } = useContacts();
   const [teamMembers, setTeamMembers] = useState<TeamMemberOption[]>([]);
   const [teamLoading, setTeamLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,29 +38,29 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
   const [showSPOCForm, setShowSPOCForm] = useState(false);
   const [spocFormType, setSPOCFormType] = useState<'external' | 'internal'>('external');
 
-  // Fetch team members (users table) for internal SPOC assignment - only from current company
+  // Fetch team members for internal SPOC assignment
   useEffect(() => {
     const load = async () => {
       try {
         setTeamLoading(true);
         const companyId = await getCurrentUserCompanyId();
-        if (!companyId) {
-          throw new Error('User company not found');
-        }
-        
-        const { data, error } = await supabase
+        if (!companyId) return;
+
+        const { data: users, error } = await supabase
           .from('users')
-          .select('id, email, first_name, last_name, is_active')
-          .eq('company_id', companyId)
-          .eq('is_active', true)
-          .order('first_name');
+          .select('id, email, first_name, last_name')
+          .eq('company_id', companyId);
+
         if (error) throw error;
-        setTeamMembers((data || []).map((u: any) => ({
-          id: u.id,
-          firstName: u.first_name || '',
-          lastName: u.last_name || '',
-          email: u.email || '',
-        })));
+
+        setTeamMembers(
+          (users || []).map(u => ({
+            id: u.id,
+            firstName: u.first_name || 'Unknown',
+            lastName: u.last_name || 'User',
+            email: u.email,
+          }))
+        );
       } catch (err) {
         console.error('Failed to load team members', err);
         setTeamMembers([]);
@@ -77,21 +71,21 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
     load();
   }, []);
 
-  const filteredExternalSPOCs = (externalSpocs || []).filter(spoc => {
+  const filteredExternalSPOCs = externalContacts.filter(contact => {
     const matchesSearch = searchQuery === '' || 
-      `${spoc.firstName} ${spoc.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      spoc.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      spoc.designation.toLowerCase().includes(searchQuery.toLowerCase());
+      `${contact.firstName} ${contact.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      contact.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (contact.designation || '').toLowerCase().includes(searchQuery.toLowerCase());
     
-    const matchesClient = selectedClient === 'all' || spoc.clientId === selectedClient;
+    const matchesClient = selectedClient === 'all' || contact.clientId === selectedClient;
     
     return matchesSearch && matchesClient;
   });
 
-  const filteredInternalSPOCs = (internalSpocs || []).filter(spoc => {
+  const filteredInternalSPOCs = internalContacts.filter(contact => {
     const matchesSearch = searchQuery === '' || 
-      `${spoc.user.firstName} ${spoc.user.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      spoc.user.email.toLowerCase().includes(searchQuery.toLowerCase());
+      `${contact.firstName} ${contact.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      contact.email.toLowerCase().includes(searchQuery.toLowerCase());
     
     return matchesSearch;
   });
@@ -99,131 +93,94 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
   const handleSaveSPOC = async (spocData: any) => {
     try {
       if (spocFormType === 'external') {
-        await createExternal({
+        await createContact({
+          contactType: 'external',
           clientId: spocData.clientId,
           firstName: spocData.firstName,
           lastName: spocData.lastName,
           email: spocData.email,
-          phone: spocData.phone || undefined,
+          phone: spocData.phone,
           designation: spocData.designation,
-          department: spocData.department || undefined,
+          department: spocData.department,
           isPrimary: !!spocData.isPrimary,
-          linkedinUrl: spocData.linkedinUrl || undefined,
-          notes: spocData.notes || undefined,
+          linkedinUrl: spocData.linkedinUrl,
+          notes: spocData.notes,
           isActive: !!spocData.isActive,
         });
       } else {
-        await createInternal({
+        await createContact({
+          contactType: 'internal',
           userId: spocData.userId,
-          level: spocData.level,
-          clientIds: spocData.clientIds || [],
+          firstName: spocData.firstName || 'Internal',
+          lastName: spocData.lastName || 'SPOC',
+          email: spocData.email || 'internal@company.com',
+          spocLevel: spocData.level,
+          assignedClientIds: spocData.clientIds || [],
           isActive: !!spocData.isActive,
         });
       }
+      setShowSPOCForm(false);
     } catch (err: any) {
-      alert(err.message || 'Failed to save SPOC');
+      console.error('Failed to save SPOC:', err);
     }
   };
 
   const renderExternalSPOCs = () => (
     <div className="space-y-4">
-      {filteredExternalSPOCs.map((spoc) => (
-        <div key={spoc.id} className="bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all duration-200 p-6">
+      {filteredExternalSPOCs.map((contact) => (
+        <div key={contact.id} className="bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all duration-200 p-6">
           <div className="flex items-start space-x-4">
             <img
-              src={spoc.avatar || `https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2`}
-              alt={`${spoc.firstName} ${spoc.lastName}`}
+              src={contact.avatar || `https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2`}
+              alt={`${contact.firstName} ${contact.lastName}`}
               className="w-12 h-12 rounded-full object-cover"
             />
-            
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between mb-2">
+            <div className="flex-1">
+              <div className="flex items-start justify-between">
                 <div>
-                  <div className="flex items-center space-x-2 mb-1">
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      {spoc.firstName} {spoc.lastName}
-                    </h3>
-                    {spoc.isPrimary && (
-                      <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full flex items-center">
-                        <Star size={12} className="mr-1" />
-                        Primary
-                      </span>
-                    )}
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      spoc.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {contact.firstName} {contact.lastName}
+                  </h3>
+                  <p className="text-sm text-gray-600">{contact.designation}</p>
+                  <p className="text-sm text-gray-500">{contact.client?.name}</p>
+                  <div className="flex items-center space-x-4 mt-2">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      contact.isPrimary 
+                        ? 'bg-yellow-100 text-yellow-800' 
+                        : 'bg-gray-100 text-gray-800'
                     }`}>
-                      {spoc.isActive ? 'Active' : 'Inactive'}
+                      {contact.isPrimary ? 'Primary' : 'Secondary'}
+                    </span>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      contact.isActive 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {contact.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600 mb-1">{spoc.designation}</p>
-                  <p className="text-sm text-gray-500">{spoc.client.name}</p>
                 </div>
-                
-                <button className="p-1 text-gray-400 hover:text-gray-600 rounded">
-                  <MoreVertical size={16} />
-                </button>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div className="space-y-2">
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Mail size={16} className="mr-2 text-gray-400" />
-                    <span>{spoc.email}</span>
-                  </div>
-                  
-                  {spoc.phone && (
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Phone size={16} className="mr-2 text-gray-400" />
-                      <span>{spoc.phone}</span>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Building2 size={16} className="mr-2 text-gray-400" />
-                    <span>{spoc.department}</span>
-                  </div>
-                  
-                  {spoc.linkedinUrl && (
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Linkedin size={16} className="mr-2 text-gray-400" />
-                      <a href={spoc.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
-                        LinkedIn Profile
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {spoc.notes && (
-                <div className="mb-4">
-                  <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-                    <strong>Notes:</strong> {spoc.notes}
-                  </p>
-                </div>
-              )}
-              
-              <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                <div className="text-sm text-gray-500">
-                  Added {new Intl.DateTimeFormat('en-US', { 
-                    month: 'short', 
-                    day: 'numeric', 
-                    year: 'numeric' 
-                  }).format(spoc.createdAt)}
-                </div>
-                
                 <div className="flex items-center space-x-2">
-                  <button className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                    <MessageSquare size={16} />
+                  <button className="text-gray-400 hover:text-gray-600">
+                    <Edit className="w-4 h-4" />
                   </button>
-                  <button className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
-                    <Edit size={16} />
-                  </button>
-                  <button className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                    <Trash2 size={16} />
+                  <button className="text-gray-400 hover:text-red-600">
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
+              </div>
+              
+              <div className="flex items-center space-x-6 mt-4">
+                <div className="flex items-center space-x-2">
+                  <Mail className="w-4 h-4 text-gray-400" />
+                  <span className="text-sm text-gray-600">{contact.email}</span>
+                </div>
+                {contact.phone && (
+                  <div className="flex items-center space-x-2">
+                    <Phone className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm text-gray-600">{contact.phone}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -234,75 +191,64 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
 
   const renderInternalSPOCs = () => (
     <div className="space-y-4">
-      {filteredInternalSPOCs.map((spoc) => (
-        <div key={spoc.id} className="bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all duration-200 p-6">
+      {filteredInternalSPOCs.map((contact) => (
+        <div key={contact.id} className="bg-white rounded-lg border border-gray-200 hover:border-green-300 hover:shadow-md transition-all duration-200 p-6">
           <div className="flex items-start space-x-4">
             <img
-              src={spoc.user.avatar || `https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2`}
-              alt={`${spoc.user.firstName} ${spoc.user.lastName}`}
+              src={contact.avatar || contact.user?.avatar || `https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2`}
+              alt={`${contact.firstName} ${contact.lastName}`}
               className="w-12 h-12 rounded-full object-cover"
             />
-            
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between mb-2">
+            <div className="flex-1">
+              <div className="flex items-start justify-between">
                 <div>
-                  <div className="flex items-center space-x-2 mb-1">
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      {spoc.user.firstName} {spoc.user.lastName}
-                    </h3>
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      spoc.level === 'primary' 
-                        ? 'bg-blue-100 text-blue-800' 
-                        : 'bg-purple-100 text-purple-800'
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {contact.firstName} {contact.lastName}
+                  </h3>
+                  <p className="text-sm text-gray-600">{contact.email}</p>
+                  <div className="flex items-center space-x-4 mt-2">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      contact.spocLevel === 'primary' 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-blue-100 text-blue-800'
                     }`}>
-                      {spoc.level === 'primary' ? 'Primary SPOC' : 'Secondary SPOC'}
+                      {contact.spocLevel || 'secondary'} SPOC
                     </span>
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      spoc.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      contact.isActive 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
                     }`}>
-                      {spoc.isActive ? 'Active' : 'Inactive'}
+                      {contact.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600 mb-1">{spoc.user.roles[0]?.name}</p>
-                  <p className="text-sm text-gray-500">{spoc.user.email}</p>
                 </div>
-                
-                <button className="p-1 text-gray-400 hover:text-gray-600 rounded">
-                  <MoreVertical size={16} />
-                </button>
+                <div className="flex items-center space-x-2">
+                  <button className="text-gray-400 hover:text-gray-600">
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button className="text-gray-400 hover:text-red-600">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
               
-              <div className="mb-4">
-                <p className="text-sm font-medium text-gray-700 mb-2">Assigned Clients:</p>
+              <div className="mt-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Assigned Clients:</h4>
                 <div className="flex flex-wrap gap-2">
-                  {spoc.clients.map((client) => (
-                    <span key={client.id} className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
+                  {contact.assignedClients?.map((client: any) => (
+                    <span key={client.id} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                       {client.name}
                     </span>
                   ))}
+                  {(!contact.assignedClients || contact.assignedClients.length === 0) && (
+                    <span className="text-sm text-gray-500">No clients assigned</span>
+                  )}
                 </div>
               </div>
               
-              <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                <div className="text-sm text-gray-500">
-                  Assigned {new Intl.DateTimeFormat('en-US', { 
-                    month: 'short', 
-                    day: 'numeric', 
-                    year: 'numeric' 
-                  }).format(spoc.assignedAt)}
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <button className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                    <MessageSquare size={16} />
-                  </button>
-                  <button className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
-                    <Edit size={16} />
-                  </button>
-                  <button className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                    <Trash2 size={16} />
-                  </button>
-                </div>
+              <div className="mt-3 text-xs text-gray-500">
+                Created: {contact.createdAt.toLocaleDateString()}
               </div>
             </div>
           </div>
@@ -338,7 +284,7 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">External SPOCs</p>
-              <p className="text-2xl font-bold text-gray-900">{externalSpocs.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.external}</p>
             </div>
             <User className="w-8 h-8 text-blue-600" />
           </div>
@@ -348,7 +294,7 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Internal SPOCs</p>
-              <p className="text-2xl font-bold text-gray-900">{internalSpocs.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.internal}</p>
             </div>
             <UserCheck className="w-8 h-8 text-green-600" />
           </div>
@@ -358,9 +304,7 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Primary SPOCs</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {externalSpocs.filter(s => s.isPrimary).length}
-              </p>
+              <p className="text-2xl font-bold text-gray-900">{stats.primary}</p>
             </div>
             <Star className="w-8 h-8 text-yellow-600" />
           </div>
@@ -370,9 +314,7 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Active SPOCs</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {[...externalSpocs, ...internalSpocs].filter(s => s.isActive).length}
-              </p>
+              <p className="text-2xl font-bold text-gray-900">{stats.active}</p>
             </div>
             <CheckCircle className="w-8 h-8 text-purple-600" />
           </div>
@@ -383,23 +325,20 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
       <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
         <div className="flex items-center space-x-4 mb-4">
           <div className="flex-1 relative">
-            <Search 
-              size={20} 
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" 
-            />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
               type="text"
-              placeholder="Search SPOCs by name, email, or designation..."
+              placeholder="Search SPOCs..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
             className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center space-x-2"
           >
-            <Filter size={20} />
+            <Filter className="w-4 h-4" />
             <span>Filters</span>
           </button>
         </div>
@@ -414,7 +353,7 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
                 : 'text-gray-600 hover:bg-gray-100'
             }`}
           >
-            External SPOCs ({externalSpocs.length})
+            External SPOCs ({stats.external})
           </button>
           <button
             onClick={() => setActiveTab('internal')}
@@ -424,7 +363,7 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
                 : 'text-gray-600 hover:bg-gray-100'
             }`}
           >
-            Internal SPOCs ({internalSpocs.length})
+            Internal SPOCs ({stats.internal})
           </button>
         </div>
 
@@ -436,35 +375,17 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Client
                 </label>
-                <select 
+                <select
                   value={selectedClient}
                   onChange={(e) => setSelectedClient(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="all">All Clients</option>
-                  {clientsOptions.map(client => (
-                    <option key={client.id} value={client.id}>{client.name}</option>
+                  {clientsOptions.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.name}
+                    </option>
                   ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Status
-                </label>
-                <select className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option>All Status</option>
-                  <option>Active</option>
-                  <option>Inactive</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Type
-                </label>
-                <select className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option>All Types</option>
-                  <option>Primary</option>
-                  <option>Secondary</option>
                 </select>
               </div>
             </div>
@@ -473,20 +394,20 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
       </div>
 
       {/* SPOC Lists */}
-      {(externalError || internalError) && (
+      {error && (
         <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-700 border border-red-200">
-          {externalError || internalError}
+          {error}
         </div>
       )}
-      {(clientsLoading || externalLoading || internalLoading || teamLoading) && (
+      {(clientsLoading || isLoading || teamLoading) && (
         <div className="text-center py-8 text-gray-500">Loading...</div>
       )}
-      {!(clientsLoading || externalLoading || internalLoading || teamLoading) && (
+      {!(clientsLoading || isLoading || teamLoading) && (
         activeTab === 'external' ? renderExternalSPOCs() : renderInternalSPOCs()
       )}
 
       {/* Empty State */}
-      {!(clientsLoading || externalLoading || internalLoading || teamLoading) && ((activeTab === 'external' && filteredExternalSPOCs.length === 0) ||
+      {!(clientsLoading || isLoading || teamLoading) && ((activeTab === 'external' && filteredExternalSPOCs.length === 0) ||
         (activeTab === 'internal' && filteredInternalSPOCs.length === 0)) && (
         <div className="text-center py-12">
           <Users className="mx-auto h-12 w-12 text-gray-400" />
@@ -498,15 +419,16 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
       )}
 
       {/* SPOC Form Modal */}
-      <SPOCForm
-        type={spocFormType}
-        isOpen={showSPOCForm}
-        onClose={() => setShowSPOCForm(false)}
-        onSave={handleSaveSPOC}
-        clients={clientsOptions}
-        teamMembers={teamMembers}
-        defaultClientId={selectedClient !== 'all' ? selectedClient : (initialClientId || undefined)}
-      />
+      {showSPOCForm && (
+        <SPOCForm
+          type={spocFormType}
+          isOpen={showSPOCForm}
+          onClose={() => setShowSPOCForm(false)}
+          onSave={handleSaveSPOC}
+          clients={clientsOptions}
+          teamMembers={teamMembers}
+        />
+      )}
     </div>
   );
 };

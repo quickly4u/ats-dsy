@@ -925,15 +925,13 @@ export const useInterviews = (filters?: FilterOptions) => {
       const companyId = await getCurrentUserCompanyId();
       if (!companyId) throw new Error('User company not found');
 
-      // Merge meetingUrl into location if provided (DB has no meeting_url column)
-      const location = payload.location || (payload.meetingUrl ? `Video: ${payload.meetingUrl}` : undefined);
-
       const insertData: any = {
         title: payload.title,
         description: payload.description || null,
         scheduled_at: payload.scheduledAt?.toISOString?.() ? payload.scheduledAt : new Date(payload.scheduledAt),
         duration_minutes: payload.durationMinutes,
-        location: location || null,
+        location: payload.location || null,
+        meeting_url: payload.meetingUrl || null,
         status: payload.status || 'scheduled',
         interview_round: payload.interviewRound ?? 1,
         application_id: payload.applicationId,

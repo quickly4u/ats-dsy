@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import type { Interview, Application } from '../../types';
 import { useApplications, useTeamMembers } from '../../hooks/useRecruitmentData';
+import { useToast } from '../../hooks/useToast';
+import LoadingSpinner from '../common/LoadingSpinner';
 
 type InterviewStatus = 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
 
@@ -30,7 +32,7 @@ interface InterviewFormProps {
   application?: Application;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (interviewData: CreateInterviewPayload) => void;
+  onSave: (interviewData: CreateInterviewPayload) => Promise<{ id?: string; error?: string }>;
 }
 
 const InterviewForm: React.FC<InterviewFormProps> = ({ 
@@ -55,7 +57,11 @@ const InterviewForm: React.FC<InterviewFormProps> = ({
     participants: [] as { userId: string; role: string; isRequired: boolean }[]
   });
 
-  // Real data hooks
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // Hooks
+  const { success, error: showError } = useToast();
   const { applications, isLoading: appsLoading, error: appsError } = useApplications();
   const { teamMembers, isLoading: usersLoading, error: usersError } = useTeamMembers();
 
@@ -68,21 +74,62 @@ const InterviewForm: React.FC<InterviewFormProps> = ({
     { value: 'final', label: 'Final Interview' }
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.title.trim()) {
+      newErrors.title = 'Interview title is required';
+    }
+    if (!formData.applicationId) {
+      newErrors.applicationId = 'Application selection is required';
+    }
+    if (!formData.scheduledAt) {
+      newErrors.scheduledAt = 'Interview date and time is required';
+    }
+    if (formData.durationMinutes < 15) {
+      newErrors.durationMinutes = 'Duration must be at least 15 minutes';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({
-      applicationId: formData.applicationId,
-      title: formData.title,
-      description: formData.description,
-      scheduledAt: new Date(formData.scheduledAt),
-      durationMinutes: formData.durationMinutes,
-      location: formData.location,
-      meetingUrl: formData.meetingUrl,
-      status: formData.status as InterviewStatus,
-      interviewRound: formData.interviewRound,
-      participants: formData.participants,
-    });
-    onClose();
+    
+    if (!validateForm()) {
+      showError('Validation Error', 'Please fix the errors in the form');
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    try {
+      const result = await onSave({
+        applicationId: formData.applicationId,
+        title: formData.title,
+        description: formData.description,
+        scheduledAt: new Date(formData.scheduledAt),
+        durationMinutes: formData.durationMinutes,
+        location: formData.location,
+        meetingUrl: formData.meetingUrl,
+        status: formData.status as InterviewStatus,
+        interviewRound: formData.interviewRound,
+        participants: formData.participants,
+      });
+
+      if (result.error) {
+        showError('Failed to save interview', result.error);
+      } else {
+        success('Interview saved successfully', 
+          interview ? 'Interview has been updated' : 'Interview has been scheduled');
+        onClose();
+      }
+    } catch (error) {
+      showError('Unexpected error', 'Failed to save interview. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const addParticipant = () => {
@@ -139,6 +186,22 @@ const InterviewForm: React.FC<InterviewFormProps> = ({
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
             <div className="space-y-6">
+              {/* Loading State */}
+              {(appsLoading || usersLoading) && (
+                <div className="mb-4">
+                  <LoadingSpinner text="Loading form data..." />
+                </div>
+              )}
+
+              {/* Error State */}
+              {(appsError || usersError) && (
+                <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-800 text-sm">
+                    {appsError || usersError || 'Failed to load form data'}
+                  </p>
+                </div>
+              )}
+
               {/* Application Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -148,8 +211,10 @@ const InterviewForm: React.FC<InterviewFormProps> = ({
                   required
                   value={formData.applicationId}
                   onChange={(e) => setFormData(prev => ({ ...prev, applicationId: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  disabled={!!application} // Disable if application is pre-selected
+                  className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errors.applicationId ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
+                  disabled={!!application || appsLoading} // Disable if application is pre-selected or loading
                 >
                   <option value="">Select Application</option>
                   {appsLoading && (
@@ -164,6 +229,9 @@ const InterviewForm: React.FC<InterviewFormProps> = ({
                     </option>
                   ))}
                 </select>
+                {errors.applicationId && (
+                  <p className="mt-1 text-sm text-red-600">{errors.applicationId}</p>
+                )}
                 {selectedApplication && (
                   <p className="mt-1 text-sm text-gray-500">
                     Interview for {selectedApplication.candidate.firstName} {selectedApplication.candidate.lastName}
@@ -182,9 +250,14 @@ const InterviewForm: React.FC<InterviewFormProps> = ({
                     required
                     value={formData.title}
                     onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      errors.title ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                    }`}
                     placeholder="e.g. Technical Interview"
                   />
+                  {errors.title && (
+                    <p className="mt-1 text-sm text-red-600">{errors.title}</p>
+                  )}
                 </div>
 
                 <div>
@@ -445,10 +518,20 @@ const InterviewForm: React.FC<InterviewFormProps> = ({
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+              disabled={isSubmitting}
+              className={`px-4 py-2 rounded-lg flex items-center space-x-2 ${
+                isSubmitting 
+                  ? 'bg-blue-400 cursor-not-allowed' 
+                  : 'bg-blue-600 hover:bg-blue-700'
+              } text-white`}
             >
               <Save size={16} />
-              <span>{interview ? 'Update Interview' : 'Schedule Interview'}</span>
+              <span>
+                {isSubmitting 
+                  ? 'Saving...' 
+                  : interview ? 'Update Interview' : 'Schedule Interview'
+                }
+              </span>
             </button>
           </div>
         </form>

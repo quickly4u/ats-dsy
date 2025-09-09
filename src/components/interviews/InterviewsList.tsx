@@ -27,13 +27,9 @@ const InterviewsList: React.FC = () => {
   };
 
   const handleSaveInterview = async (interviewData: any) => {
-    const res = await createInterview(interviewData);
-    if ((res as any)?.error) {
-      console.error('Failed to create interview:', (res as any).error);
-      return;
-    }
+    const result = await createInterview(interviewData);
     await refetch();
-    setShowInterviewForm(false);
+    return result;
   };
 
   const formatDate = (date: Date) => {

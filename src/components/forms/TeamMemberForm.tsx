@@ -1,50 +1,51 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
   X, 
   Save, 
   User, 
-  Shield,
   Building2,
   Upload,
-  Plus,
-  Trash2
 } from 'lucide-react';
+
+interface Role {
+  id: string;
+  name: string;
+  description: string;
+  permissions: string[];
+  isActive: boolean;
+  createdAt: Date;
+}
 
 interface TeamMemberFormProps {
   member?: any;
+  editingMember?: any;
+  roles?: Role[];
+  members?: Array<{ id: string; firstName: string; lastName: string; role: string; status: string }>; 
   isOpen: boolean;
   onClose: () => void;
   onSave: (memberData: any) => void;
 }
 
-const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ member, isOpen, onClose, onSave }) => {
+const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ member, editingMember, roles = [], members = [], isOpen, onClose, onSave }) => {
+  const currentMember = editingMember || member;
   const [formData, setFormData] = useState({
-    firstName: member?.firstName || '',
-    lastName: member?.lastName || '',
-    email: member?.email || '',
-    phone: member?.phone || '',
-    role: member?.role || 'recruiter',
-    department: member?.department || 'Human Resources',
-    status: member?.status || 'active',
-    reportsTo: member?.reportsTo || '',
-    startDate: member?.startDate ? 
-      new Date(member.startDate).toISOString().split('T')[0] : '',
-    permissions: member?.permissions || [],
-    customPermissions: [] as string[]
+    firstName: currentMember?.firstName || '',
+    lastName: currentMember?.lastName || '',
+    email: currentMember?.email || '',
+    phone: currentMember?.phone || '',
+    roleId: roles.find(r => r.name === currentMember?.role)?.id || roles[0]?.id || '',
+    role: currentMember?.role || 'Recruiter',
+    department: currentMember?.department || 'General',
+    status: currentMember?.status || 'active',
+    reportsTo: currentMember?.reportsTo || '',
+    startDate: currentMember?.startDate ? 
+      new Date(currentMember.startDate).toISOString().split('T')[0] : '',
+    // permissions removed
   });
 
-  const [activeTab, setActiveTab] = useState('basic');
-  const [newPermission, setNewPermission] = useState('');
+  const [activeTab, setActiveTab] = useState<'basic' | 'role'>('basic');
 
-  const roles = [
-    { value: 'hr_manager', label: 'HR Manager' },
-    { value: 'senior_recruiter', label: 'Senior Recruiter' },
-    { value: 'recruiter', label: 'Recruiter' },
-    { value: 'hiring_manager', label: 'Hiring Manager' },
-    { value: 'interviewer', label: 'Interviewer' },
-    { value: 'coordinator', label: 'Recruitment Coordinator' },
-    { value: 'admin', label: 'Administrator' }
-  ];
+  // Removed unused defaultRoles array - using roles prop instead
 
   const departments = [
     'Human Resources',
@@ -57,66 +58,81 @@ const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ member, isOpen, onClose
     'Legal'
   ];
 
-  const defaultPermissions = [
-    { id: 'job_management', label: 'Job Management', description: 'Create, edit, and manage job postings' },
-    { id: 'candidate_management', label: 'Candidate Management', description: 'View and manage candidate profiles' },
-    { id: 'application_review', label: 'Application Review', description: 'Review and process applications' },
-    { id: 'interview_scheduling', label: 'Interview Scheduling', description: 'Schedule and manage interviews' },
-    { id: 'interview_participation', label: 'Interview Participation', description: 'Participate in interviews and provide feedback' },
-    { id: 'reporting', label: 'Reporting', description: 'Access reports and analytics' },
-    { id: 'user_management', label: 'User Management', description: 'Manage team members and permissions' },
-    { id: 'client_management', label: 'Client Management', description: 'Manage client relationships' },
-    { id: 'settings', label: 'Settings', description: 'Access system and company settings' }
-  ];
+  // Role hierarchy for Reports To (strict, role-dependent)
+  // Recruiter < ATL < TL < Manager < Head < Owner
+  const roleHierarchy: Record<string, string[]> = {
+    Owner: [],
+    Head: ['Owner'],
+    Manager: ['Head', 'Owner'],
+    TL: ['Manager', 'Head', 'Owner'],
+    ATL: ['TL', 'Manager', 'Head', 'Owner'],
+    Recruiter: ['ATL', 'TL', 'Manager', 'Head', 'Owner'],
+  };
 
-  const mockUsers = [
-    { id: '1', firstName: 'John', lastName: 'Doe', role: 'HR Manager' },
-    { id: '2', firstName: 'Jane', lastName: 'Smith', role: 'Senior Recruiter' },
-    { id: '3', firstName: 'Mike', lastName: 'Johnson', role: 'Hiring Manager' }
-  ];
+  const selectedRoleName = useMemo(() => roles.find(r => r.id === formData.roleId)?.name || formData.role, [roles, formData.roleId, formData.role]);
+  const allowedManagerRoles = roleHierarchy[selectedRoleName] || [];
+  const availableManagers = useMemo(() => {
+    if (!allowedManagerRoles.length) return [] as Array<{ id: string; firstName: string; lastName: string; role: string; status: string }>;
+    const excludeId = editingMember?.id || member?.id;
+    return members.filter(m => allowedManagerRoles.includes(m.role) && m.status === 'active' && m.id !== excludeId);
+  }, [members, allowedManagerRoles, editingMember, member]);
+
+  // Ensure a sensible default roleId for new invitations when roles load
+  useEffect(() => {
+    if (!currentMember && roles.length > 0) {
+      setFormData(prev => {
+        // If roleId already valid, keep it
+        if (prev.roleId && roles.some(r => r.id === prev.roleId)) return prev;
+        const recruiterRole = roles.find(r => r.name === 'Recruiter') || roles[0];
+        const nextRoleId = recruiterRole?.id || prev.roleId;
+        // Keep role name aligned as well
+        const nextRoleName = recruiterRole?.name || prev.role;
+        // Validate reportsTo for new role
+        if (nextRoleId) {
+          ensureValidReportsTo(nextRoleId);
+        }
+        return { ...prev, roleId: nextRoleId, role: nextRoleName };
+      });
+    }
+  }, [roles, currentMember]);
+
+  // If role changes and current reportsTo no longer valid, clear it
+  const ensureValidReportsTo = (nextRoleId: string) => {
+    const nextRoleName = roles.find(r => r.id === nextRoleId)?.name || formData.role;
+    const nextAllowed = roleHierarchy[nextRoleName] || [];
+    if (!nextAllowed.length) {
+      setFormData(prev => ({ ...prev, reportsTo: '' }));
+      return;
+    }
+    const nextManagers = members.filter(m => nextAllowed.includes(m.role) && m.status === 'active');
+    if (!nextManagers.some(m => m.id === formData.reportsTo)) {
+      setFormData(prev => ({ ...prev, reportsTo: '' }));
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave({
-      ...formData,
-      permissions: [...formData.permissions, ...formData.customPermissions]
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email,
+      phone: formData.phone,
+      roleId: formData.roleId,
+      role: selectedRoleName,
+      department: formData.department,
+      status: formData.status,
+      reportsTo: formData.reportsTo || undefined,
+      startDate: formData.startDate,
     });
     onClose();
   };
 
-  const togglePermission = (permissionId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      permissions: prev.permissions.includes(permissionId)
-        ? prev.permissions.filter((p: string) => p !== permissionId)
-        : [...prev.permissions, permissionId]
-    }));
-  };
-
-  const addCustomPermission = () => {
-    if (newPermission.trim()) {
-      setFormData(prev => ({
-        ...prev,
-        customPermissions: [...prev.customPermissions, newPermission.trim()]
-      }));
-      setNewPermission('');
-    }
-  };
-
-  const removeCustomPermission = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      customPermissions: prev.customPermissions.filter((_, i) => i !== index)
-    }));
-  };
-
   if (!isOpen) return null;
 
-  const tabs = [
+  const tabs: ReadonlyArray<{ id: 'basic' | 'role'; label: string; icon: any }> = [
     { id: 'basic', label: 'Basic Info', icon: User },
     { id: 'role', label: 'Role & Department', icon: Building2 },
-    { id: 'permissions', label: 'Permissions', icon: Shield }
-  ];
+  ] as const;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -124,7 +140,7 @@ const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ member, isOpen, onClose
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-xl font-semibold text-gray-900">
-            {member ? 'Edit Team Member' : 'Invite Team Member'}
+            {currentMember ? 'Edit Team Member' : 'Invite Team Member'}
           </h2>
           <button
             onClick={onClose}
@@ -278,12 +294,20 @@ const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ member, isOpen, onClose
                     </label>
                     <select
                       required
-                      value={formData.role}
-                      onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
+                      value={formData.roleId}
+                      onChange={(e) => {
+                        const selectedRole = roles.find(r => r.id === e.target.value);
+                        setFormData(prev => ({ 
+                          ...prev, 
+                          roleId: e.target.value,
+                          role: selectedRole?.name || ''
+                        }));
+                        ensureValidReportsTo(e.target.value);
+                      }}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       {roles.map(role => (
-                        <option key={role.value} value={role.value}>{role.label}</option>
+                        <option key={role.id} value={role.id}>{role.name}</option>
                       ))}
                     </select>
                   </div>
@@ -304,132 +328,37 @@ const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ member, isOpen, onClose
                     </select>
                   </div>
 
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Reports To
-                    </label>
-                    <select
-                      value={formData.reportsTo}
-                      onChange={(e) => setFormData(prev => ({ ...prev, reportsTo: e.target.value }))}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select Manager</option>
-                      {mockUsers.map(user => (
-                        <option key={user.id} value={user.id}>
-                          {user.firstName} {user.lastName} ({user.role})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  {allowedManagerRoles.length > 0 && (
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Reports To
+                      </label>
+                      <select
+                        value={formData.reportsTo}
+                        onChange={(e) => setFormData(prev => ({ ...prev, reportsTo: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select Manager</option>
+                        {availableManagers.map(user => (
+                          <option key={user.id} value={user.id}>
+                            {user.firstName} {user.lastName} ({user.role})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <h4 className="font-medium text-blue-900 mb-2">Role Description</h4>
                   <div className="text-sm text-blue-800">
-                    {formData.role === 'hr_manager' && (
-                      <p>Full oversight of recruitment processes, team management, and strategic planning.</p>
-                    )}
-                    {formData.role === 'senior_recruiter' && (
-                      <p>Lead complex recruitment projects, mentor junior recruiters, and manage key client relationships.</p>
-                    )}
-                    {formData.role === 'recruiter' && (
-                      <p>Source candidates, manage applications, and coordinate interviews for assigned positions.</p>
-                    )}
-                    {formData.role === 'hiring_manager' && (
-                      <p>Make hiring decisions for department positions and participate in interview processes.</p>
-                    )}
-                    {formData.role === 'interviewer' && (
-                      <p>Conduct interviews and provide feedback on candidates for relevant positions.</p>
-                    )}
-                    {formData.role === 'coordinator' && (
-                      <p>Support recruitment operations, schedule interviews, and manage administrative tasks.</p>
-                    )}
-                    {formData.role === 'admin' && (
-                      <p>System administration, user management, and technical configuration.</p>
-                    )}
+                    {roles.find(r => r.id === formData.roleId)?.description || 'Role-specific permissions and responsibilities will be defined by the selected role.'}
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Permissions Tab */}
-            {activeTab === 'permissions' && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">System Permissions</h3>
-                  <div className="space-y-3">
-                    {defaultPermissions.map(permission => (
-                      <div key={permission.id} className="flex items-start space-x-3 p-3 border border-gray-200 rounded-lg">
-                        <input
-                          type="checkbox"
-                          id={permission.id}
-                          checked={formData.permissions.includes(permission.id)}
-                          onChange={() => togglePermission(permission.id)}
-                          className="mt-1 rounded border-gray-300"
-                        />
-                        <div className="flex-1">
-                          <label htmlFor={permission.id} className="text-sm font-medium text-gray-900 cursor-pointer">
-                            {permission.label}
-                          </label>
-                          <p className="text-sm text-gray-500 mt-1">{permission.description}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Custom Permissions</h3>
-                  <div className="flex space-x-2 mb-4">
-                    <input
-                      type="text"
-                      value={newPermission}
-                      onChange={(e) => setNewPermission(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomPermission())}
-                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Add custom permission"
-                    />
-                    <button
-                      type="button"
-                      onClick={addCustomPermission}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                    >
-                      <Plus size={16} />
-                    </button>
-                  </div>
-
-                  <div className="space-y-2">
-                    {formData.customPermissions.map((permission, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <span className="text-sm text-gray-900">{permission}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeCustomPermission(index)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-
-                  {formData.customPermissions.length === 0 && (
-                    <div className="text-center py-6 border-2 border-dashed border-gray-300 rounded-lg">
-                      <Shield className="mx-auto h-8 w-8 text-gray-400" />
-                      <p className="mt-2 text-sm text-gray-500">No custom permissions added</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <h4 className="font-medium text-yellow-900 mb-2">Permission Summary</h4>
-                  <p className="text-sm text-yellow-800">
-                    This user will have {formData.permissions.length + formData.customPermissions.length} permissions.
-                    Review carefully before saving.
-                  </p>
-                </div>
-              </div>
-            )}
+            {/* Permissions Tab removed */}
           </div>
 
           {/* Footer */}
@@ -446,7 +375,7 @@ const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ member, isOpen, onClose
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
             >
               <Save size={16} />
-              <span>{member ? 'Update Member' : 'Send Invitation'}</span>
+              <span>{currentMember ? 'Update Member' : 'Send Invitation'}</span>
             </button>
           </div>
         </form>

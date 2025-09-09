@@ -14,7 +14,7 @@ import {
   Trash2,
   UserPlus
 } from 'lucide-react';
-import { useTeamMembers } from '../../hooks/useRecruitmentData';
+import { useTeamManagement } from '../../hooks/useTeamManagement';
 import TeamMemberForm from '../forms/TeamMemberForm';
 
 // TeamMember interface removed - now using real data from Supabase
@@ -22,12 +22,13 @@ import TeamMemberForm from '../forms/TeamMemberForm';
 // Mock data removed - now using real Supabase data
 
 const TeamList: React.FC = () => {
-  const { teamMembers, isLoading, error } = useTeamMembers();
+  const { teamMembers, roles, stats, isLoading, error, inviteTeamMember, updateTeamMember, deactivateTeamMember, deleteTeamMember } = useTeamManagement();
   const [searchQuery, setSearchQuery] = useState('');
   const [showMemberForm, setShowMemberForm] = useState(false);
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [editingMember, setEditingMember] = useState<any>(null);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -90,9 +91,31 @@ const TeamList: React.FC = () => {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
-  const handleSaveMember = (memberData: any) => {
-    console.log('Saving team member:', memberData);
-    // In real app, this would call an API
+  const handleSaveMember = async (memberData: any) => {
+    if (editingMember) {
+      await updateTeamMember(editingMember.id, memberData);
+      setEditingMember(null);
+    } else {
+      await inviteTeamMember(memberData);
+    }
+    setShowMemberForm(false);
+  };
+
+  const handleEditMember = (member: any) => {
+    setEditingMember(member);
+    setShowMemberForm(true);
+  };
+
+  const handleDeactivateMember = async (id: string) => {
+    if (confirm('Are you sure you want to deactivate this team member?')) {
+      await deactivateTeamMember(id);
+    }
+  };
+
+  const handleDeleteMember = async (id: string) => {
+    if (confirm('Are you sure you want to remove this team member? This action cannot be undone.')) {
+      await deleteTeamMember(id);
+    }
   };
 
   if (isLoading) {
@@ -126,9 +149,7 @@ const TeamList: React.FC = () => {
     );
   }
 
-  const activeMembers = teamMembers.filter(m => m.status === 'active').length;
-  const pendingMembers = teamMembers.filter(m => m.status === 'pending').length;
-  const totalPermissions = [...new Set(teamMembers.flatMap(m => m.permissions))].length;
+  const { total, active, pending } = stats;
 
   return (
     <>
@@ -138,7 +159,7 @@ const TeamList: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Team Management</h1>
           <p className="text-gray-600 mt-1">
-            Manage users, roles, and permissions
+            Manage users, roles, and reporting lines
           </p>
         </div>
         <div className="flex items-center space-x-3">
@@ -162,7 +183,7 @@ const TeamList: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total Members</p>
-              <p className="text-2xl font-bold text-gray-900">{teamMembers.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{total}</p>
             </div>
             <Users className="w-8 h-8 text-blue-600" />
           </div>
@@ -172,7 +193,7 @@ const TeamList: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Active Users</p>
-              <p className="text-2xl font-bold text-gray-900">{activeMembers}</p>
+              <p className="text-2xl font-bold text-gray-900">{active}</p>
             </div>
             <CheckCircle className="w-8 h-8 text-green-600" />
           </div>
@@ -182,21 +203,13 @@ const TeamList: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Pending Invites</p>
-              <p className="text-2xl font-bold text-gray-900">{pendingMembers}</p>
+              <p className="text-2xl font-bold text-gray-900">{pending}</p>
             </div>
             <Clock className="w-8 h-8 text-yellow-600" />
           </div>
         </div>
         
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Permission Types</p>
-              <p className="text-2xl font-bold text-gray-900">{totalPermissions}</p>
-            </div>
-            <Shield className="w-8 h-8 text-purple-600" />
-          </div>
-        </div>
+        {/* Permissions card removed */}
       </div>
 
       {/* Search and Filters */}
@@ -238,11 +251,9 @@ const TeamList: React.FC = () => {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="all">All Roles</option>
-                  <option value="HR Manager">HR Manager</option>
-                  <option value="Senior Recruiter">Senior Recruiter</option>
-                  <option value="Recruiter">Recruiter</option>
-                  <option value="Hiring Manager">Hiring Manager</option>
-                  <option value="Interviewer">Interviewer</option>
+                  {roles.map(role => (
+                    <option key={role.id} value={role.name}>{role.name}</option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -295,9 +306,7 @@ const TeamList: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Last Login
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Permissions
-                </th>
+                {/* Permissions column removed */}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
@@ -350,31 +359,33 @@ const TeamList: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {formatLastLogin(member.lastLogin)}
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-wrap gap-1">
-                      {member.permissions.slice(0, 2).map((permission: string, index: number) => (
-                        <span
-                          key={index}
-                          className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full"
-                        >
-                          {permission.replace('_', ' ')}
-                        </span>
-                      ))}
-                      {member.permissions.length > 2 && (
-                        <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
-                          +{member.permissions.length - 2}
-                        </span>
-                      )}
-                    </div>
-                  </td>
+                  {/* Permissions cell removed */}
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center space-x-2">
-                      <button className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                      <button 
+                        onClick={() => handleEditMember(member)}
+                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Edit member"
+                      >
                         <Edit size={16} />
                       </button>
-                      <button className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                        <Trash2 size={16} />
-                      </button>
+                      {member.status === 'active' ? (
+                        <button 
+                          onClick={() => handleDeactivateMember(member.id)}
+                          className="p-2 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors"
+                          title="Deactivate member"
+                        >
+                          <XCircle size={16} />
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => handleDeleteMember(member.id)}
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Remove member"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                       <button className="p-1 text-gray-400 hover:text-gray-600 rounded">
                         <MoreVertical size={16} />
                       </button>
@@ -401,8 +412,14 @@ const TeamList: React.FC = () => {
     {/* Team Member Form Modal */}
     <TeamMemberForm
       isOpen={showMemberForm}
-      onClose={() => setShowMemberForm(false)}
+      onClose={() => {
+        setShowMemberForm(false);
+        setEditingMember(null);
+      }}
       onSave={handleSaveMember}
+      editingMember={editingMember}
+      roles={roles}
+      members={teamMembers}
     />
     </>
   );
