@@ -11,6 +11,7 @@ import Header from './components/layout/Header';
 import Dashboard from './components/dashboard/Dashboard';
 import JobsList from './components/jobs/JobsList';
 import CandidatesList from './components/candidates/CandidatesList';
+import CandidateProfilePage from './components/candidates/CandidateProfilePage';
 import ApplicationsList from './components/applications/ApplicationsList';
 import InterviewsList from './components/interviews/InterviewsList';
 import ReportsList from './components/reports/ReportsList';
@@ -73,8 +74,10 @@ const AppContent: React.FC = () => {
 
   const getActiveSection = () => {
     const path = location.pathname;
-    if (path === '/' || path === '/dashboard') return 'dashboard';
-    return path.substring(1); // Remove leading slash
+    // Use the first path segment for active section to support nested routes like /candidates/:id
+    const first = path.split('/')[1] || 'dashboard';
+    if (first === '' || first === 'dashboard') return 'dashboard';
+    return first;
   };
 
   const getSectionTitle = () => {
@@ -139,6 +142,7 @@ const AppContent: React.FC = () => {
               <Route path="/spocs" element={<SPOCManagement />} />
               <Route path="/jobs" element={<JobsList />} />
               <Route path="/candidates" element={<CandidatesList />} />
+              <Route path="/candidates/:id" element={<CandidateProfilePage />} />
               <Route path="/applications" element={<ApplicationsList />} />
               <Route path="/interviews" element={<InterviewsList />} />
               <Route path="/reports" element={<ReportsList />} />

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   X, 
   Save, 
@@ -10,6 +10,8 @@ import type { Application } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { useJobs, useCandidates, useStages } from '../../hooks/useRecruitmentData';
 import { getJobApplicationQuestions } from '../../lib/jobSkillsApi';
+import { useFileUpload } from '../../hooks/useFileUpload';
+import { getCurrentUserCompanyId } from '../../lib/supabase';
 
 type FormData = {
   jobId: string;
@@ -64,6 +66,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
   const [filePreviews, setFilePreviews] = useState<Record<number, string>>({});
   const [primaryResume, setPrimaryResume] = useState<{ url: string; name: string; size?: number; type?: string } | null>(null);
   const [responseErrors, setResponseErrors] = useState<Record<number, string | null>>({});
+  const [makeResumesPrimary, setMakeResumesPrimary] = useState(true);
 
   // When job changes, load custom application questions for that job and prefill response slots
   useEffect(() => {
@@ -93,28 +96,33 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.jobId]);
 
-  // Load candidate's primary resume when candidate changes
-  useEffect(() => {
-    const loadPrimaryResume = async () => {
-      try {
-        setPrimaryResume(null);
-        if (!formData.candidateId) return;
-        const { data, error } = await supabase
-          .from('candidate_files')
-          .select('file_url, file_name, file_size, file_type, is_primary, file_category')
-          .eq('candidate_id', formData.candidateId)
-          .eq('is_primary', true)
-          .maybeSingle();
-        if (error) throw error;
-        if (data?.file_url) {
-          setPrimaryResume({ url: data.file_url, name: data.file_name, size: data.file_size, type: data.file_type });
-        }
-      } catch (e) {
-        console.warn('Failed to load primary resume:', e);
+  // Helper: load candidate's primary resume and expose for reuse
+  const fetchPrimaryResume = async () => {
+    try {
+      setPrimaryResume(null);
+      if (!formData.candidateId) return;
+      const { data, error } = await supabase
+        .from('candidate_files')
+        .select('file_url, file_name, file_size, file_type, is_primary, file_category')
+        .eq('candidate_id', formData.candidateId)
+        .eq('is_primary', true)
+        .maybeSingle();
+      if (error) throw error;
+      if (data?.file_url) {
+        setPrimaryResume({ url: data.file_url, name: data.file_name, size: data.file_size, type: data.file_type });
       }
-    };
-    loadPrimaryResume();
-  }, [formData.candidateId]);
+    } catch (e) {
+      console.warn('Failed to load primary resume:', e);
+    }
+  };
+  // Load candidate's primary resume when candidate changes
+  useEffect(() => { fetchPrimaryResume(); }, [formData.candidateId]);
+
+  // Company ID for uploads and upload hook bound to selected candidate
+  const [companyId, setCompanyId] = useState<string>('');
+  useEffect(() => { (async () => { const id = await getCurrentUserCompanyId(); if (id) setCompanyId(id); })(); }, []);
+  const { uploadFile, uploading } = useFileUpload({ candidateId: formData.candidateId, companyId: companyId || '' });
+  const resumeInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch company-specific jobs and candidates
   const { jobs, isLoading: jobsLoading, error: jobsError } = useJobs();
@@ -650,33 +658,50 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
                     </label>
                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
                       <Upload className="mx-auto h-8 w-8 text-gray-400" />
-                      <div className="mt-2">
+                      <input
+                        ref={resumeInputRef}
+                        type="file"
+                        accept=".pdf,.doc,.docx"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files && e.target.files[0];
+                          if (!file) return;
+                          if (!formData.candidateId || !companyId) {
+                            alert('Select a candidate first to upload a resume.');
+                            e.currentTarget.value = '';
+                            return;
+                          }
+                          await uploadFile(file, 'resume', makeResumesPrimary);
+                          await fetchPrimaryResume();
+                          e.currentTarget.value = '';
+                        }}
+                      />
+                      <div className="mt-2 space-y-2">
+                        <label className="flex items-center text-sm text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={makeResumesPrimary}
+                            onChange={(e) => setMakeResumesPrimary(e.target.checked)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2"
+                          />
+                          <span>Set as candidate's primary resume</span>
+                        </label>
                         <button
                           type="button"
-                          className="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                          onClick={() => {
+                            if (!formData.candidateId) {
+                              alert('Select a candidate first to upload a resume.');
+                              return;
+                            }
+                            resumeInputRef.current?.click();
+                          }}
+                          disabled={!formData.candidateId || !companyId || uploading}
+                          className="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:opacity-60"
                         >
-                          Upload Resume
+                          {uploading ? 'Uploading...' : 'Upload Resume'}
                         </button>
                       </div>
                       <p className="mt-1 text-xs text-gray-500">PDF, DOC, DOCX</p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Additional Documents
-                    </label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                      <Plus className="mx-auto h-8 w-8 text-gray-400" />
-                      <div className="mt-2">
-                        <button
-                          type="button"
-                          className="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
-                        >
-                          Upload Files
-                        </button>
-                      </div>
-                      <p className="mt-1 text-xs text-gray-500">Portfolio, certificates, etc.</p>
                     </div>
                   </div>
                 </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   User, 
   Plus, 
@@ -16,7 +17,6 @@ import { useCandidates } from '../../hooks/useRecruitmentData';
 import { supabase, getCurrentUserCompanyId } from '../../lib/supabase';
 import type { Candidate, FilterOptions } from '../../types';
 import CandidateForm from '../forms/CandidateForm';
-import CandidateDetailsModal from './CandidateDetailsModal';
 import CandidateFileManager from './CandidateFileManager';
 
 const CandidatesList: React.FC = () => {
@@ -24,11 +24,10 @@ const CandidatesList: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [showCandidateForm, setShowCandidateForm] = useState(false);
   const { candidates, isLoading, error } = useCandidates(filters);
-  const [showCandidateDetails, setShowCandidateDetails] = useState(false);
-  const [activeCandidate, setActiveCandidate] = useState<Candidate | undefined>(undefined);
   const [showFileManager, setShowFileManager] = useState(false);
   const [fileManagerCandidate, setFileManagerCandidate] = useState<Candidate | undefined>(undefined);
   const [userCompanyId, setUserCompanyId] = useState<string>('');
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchCompanyId = async () => {
@@ -44,7 +43,7 @@ const CandidatesList: React.FC = () => {
     setFilters(prev => ({ ...prev, search }));
   };
 
-  const handleSaveCandidate = async (candidateData: Partial<Candidate>) => {
+  const handleSaveCandidate = async (candidateData: Partial<Candidate>, extras?: { resumeFile?: File }) => {
     try {
       const companyId = await getCurrentUserCompanyId();
       if (!companyId) throw new Error('User company not found');
@@ -69,7 +68,6 @@ const CandidatesList: React.FC = () => {
         source: rest.source ?? 'manual',
         rating: rest.rating ?? null,
         is_blacklisted: rest.isBlacklisted ?? false,
-        gdpr_consent: rest.gdprConsent ?? false,
         company_id: companyId,
       };
 
@@ -104,6 +102,44 @@ const CandidatesList: React.FC = () => {
         }));
         const { error: expError } = await supabase.from('candidate_experiences').insert(expRows);
         if (expError) throw expError;
+      }
+
+      // If a resume file was attached before save, upload it now and create DB record
+      if (extras?.resumeFile) {
+        const file = extras.resumeFile as File;
+        const safeName = file.name.replace(/[^a-zA-Z0-9_.-]/g, '_');
+        const storagePath = `${companyId}/${candidateId}/${Date.now()}_${safeName}`;
+        const { error: uploadError } = await supabase.storage
+          .from('candidate-files')
+          .upload(storagePath, file, { upsert: false });
+        if (uploadError) throw uploadError;
+        const { data: publicUrl } = supabase.storage
+          .from('candidate-files')
+          .getPublicUrl(storagePath);
+        const fileUrl = publicUrl.publicUrl;
+
+        // Insert candidate_files row (primary resume)
+        const { error: fileDbError } = await supabase
+          .from('candidate_files')
+          .insert({
+            candidate_id: candidateId,
+            company_id: companyId,
+            file_name: file.name,
+            file_type: file.type,
+            file_size: file.size,
+            file_url: fileUrl,
+            storage_path: storagePath,
+            file_category: 'resume',
+            is_primary: true,
+            uploaded_by: (await supabase.auth.getUser()).data.user?.id,
+          });
+        if (fileDbError) throw fileDbError;
+
+        // Optional: set quick access on candidate row
+        await supabase
+          .from('candidates')
+          .update({ resume_url: fileUrl })
+          .eq('id', candidateId);
       }
 
       // Close form and refresh list
@@ -227,7 +263,7 @@ const CandidatesList: React.FC = () => {
                 <div className="flex items-center space-x-2">
                   <button
                     className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                    onClick={() => { setActiveCandidate(candidate); setShowCandidateDetails(true); }}
+                    onClick={() => navigate(`/candidates/${candidate.id}`)}
                     title="View Details"
                   >
                     <Eye size={16} />
@@ -249,7 +285,7 @@ const CandidatesList: React.FC = () => {
                 
                 <button
                   className="px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
-                  onClick={() => { setActiveCandidate(candidate); setShowCandidateDetails(true); }}
+                  onClick={() => navigate(`/candidates/${candidate.id}`)}
                 >
                   View Profile
                 </button>
@@ -269,14 +305,6 @@ const CandidatesList: React.FC = () => {
         </div>
       )}
     </div>
-
-    {/* Candidate Details Modal */}
-    <CandidateDetailsModal
-      isOpen={showCandidateDetails}
-      candidate={activeCandidate}
-      onClose={() => { setShowCandidateDetails(false); setActiveCandidate(undefined); }}
-    />
-
     {/* Candidate Form Modal */}
     <CandidateForm
       isOpen={showCandidateForm}

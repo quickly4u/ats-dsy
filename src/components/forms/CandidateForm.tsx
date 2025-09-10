@@ -1,30 +1,31 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   X, 
   Save, 
   User, 
-  Mail, 
-  Phone, 
-  MapPin, 
   Briefcase,
   GraduationCap,
-  FileText,
   Plus,
   Upload,
-  Linkedin,
-  Globe,
   Star
 } from 'lucide-react';
 import type { Candidate } from '../../types';
+import { useFileUpload } from '../../hooks/useFileUpload';
+import { getCurrentUserCompanyId } from '../../lib/supabase';
 
 interface CandidateFormProps {
   candidate?: Candidate;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (candidateData: Partial<Candidate>) => void;
+  onSave: (candidateData: Partial<Candidate>, extras?: { resumeFile?: File }) => void;
 }
 
 const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClose, onSave }) => {
+  const [companyId, setCompanyId] = useState<string>('');
+  useEffect(() => { (async () => { const id = await getCurrentUserCompanyId(); if (id) setCompanyId(id); })(); }, []);
+  const { uploadFile, uploading } = useFileUpload({ candidateId: candidate?.id || '', companyId: companyId || '' });
+  const resumeInputRef = useRef<HTMLInputElement>(null);
+  const [pendingResumeFile, setPendingResumeFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
     firstName: candidate?.firstName || '',
     lastName: candidate?.lastName || '',
@@ -32,24 +33,20 @@ const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClos
     phone: candidate?.phone || '',
     location: candidate?.location || '',
     linkedinUrl: candidate?.linkedinUrl || '',
-    portfolioUrl: candidate?.portfolioUrl || '',
     currentCompany: candidate?.currentCompany || '',
     currentTitle: candidate?.currentTitle || '',
     experienceYears: candidate?.experienceYears || '',
     summary: candidate?.summary || '',
     source: candidate?.source || 'manual',
     skills: candidate?.skills || [],
-    tags: candidate?.tags || [],
-    gdprConsent: candidate?.gdprConsent || false,
     workExperience: [] as { company: string; title: string; startDate: string; endDate: string; description: string }[],
     education: [] as { institution: string; degree: string; field: string; startDate: string; endDate: string }[],
     languages: [] as { language: string; proficiency: string }[],
     certifications: [] as { name: string; issuer: string; date: string; url: string }[]
   });
 
-  const [activeTab, setActiveTab] = useState('basic');
+  const [activeTab, setActiveTab] = useState('documents');
   const [currentSkill, setCurrentSkill] = useState('');
-  const [currentTag, setCurrentTag] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,18 +65,15 @@ const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClos
       phone: formData.phone || undefined,
       location: formData.location || undefined,
       linkedinUrl: formData.linkedinUrl || undefined,
-      portfolioUrl: formData.portfolioUrl || undefined,
       currentCompany: formData.currentCompany || undefined,
       currentTitle: formData.currentTitle || undefined,
       experienceYears: formData.experienceYears ? Number(formData.experienceYears) : undefined,
       summary: formData.summary || undefined,
       source: formData.source,
       skills: formData.skills,
-      tags: formData.tags,
-      gdprConsent: formData.gdprConsent,
       experiences
     };
-    onSave(payload);
+    onSave(payload, pendingResumeFile ? { resumeFile: pendingResumeFile } : undefined);
     onClose();
   };
 
@@ -100,22 +94,7 @@ const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClos
     }));
   };
 
-  const addTag = () => {
-    if (currentTag.trim()) {
-      setFormData(prev => ({
-        ...prev,
-        tags: [...prev.tags, currentTag.trim()]
-      }));
-      setCurrentTag('');
-    }
-  };
-
-  const removeTag = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      tags: prev.tags.filter((_, i) => i !== index)
-    }));
-  };
+  // Tags removed as per requirements
 
   const addWorkExperience = () => {
     setFormData(prev => ({
@@ -179,11 +158,11 @@ const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClos
   if (!isOpen) return null;
 
   const tabs = [
+    { id: 'documents', label: 'Documents', icon: Upload },
     { id: 'basic', label: 'Basic Info', icon: User },
     { id: 'experience', label: 'Experience', icon: Briefcase },
     { id: 'education', label: 'Education', icon: GraduationCap },
-    { id: 'skills', label: 'Skills & Tags', icon: Star },
-    { id: 'documents', label: 'Documents', icon: FileText }
+    { id: 'skills', label: 'Skills', icon: Star }
   ];
 
   return (
@@ -328,19 +307,6 @@ const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClos
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Portfolio/Website
-                    </label>
-                    <input
-                      type="url"
-                      value={formData.portfolioUrl}
-                      onChange={(e) => setFormData(prev => ({ ...prev, portfolioUrl: e.target.value }))}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="https://johndoe.com"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
                       Current Company
                     </label>
                     <input
@@ -396,18 +362,6 @@ const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClos
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Brief summary of the candidate's background, skills, and career objectives..."
                   />
-                </div>
-
-                <div>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.gdprConsent}
-                      onChange={(e) => setFormData(prev => ({ ...prev, gdprConsent: e.target.checked }))}
-                      className="rounded border-gray-300"
-                    />
-                    <span className="text-sm text-gray-700">GDPR Consent Obtained</span>
-                  </label>
                 </div>
               </div>
             )}
@@ -631,7 +585,7 @@ const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClos
               </div>
             )}
 
-            {/* Skills & Tags Tab */}
+            {/* Skills Tab */}
             {activeTab === 'skills' && (
               <div className="space-y-6">
                 {/* Skills */}
@@ -675,46 +629,7 @@ const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClos
                   </div>
                 </div>
 
-                {/* Tags */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tags
-                  </label>
-                  <div className="flex space-x-2 mb-2">
-                    <input
-                      type="text"
-                      value={currentTag}
-                      onChange={(e) => setCurrentTag(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Add a tag"
-                    />
-                    <button
-                      type="button"
-                      onClick={addTag}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                    >
-                      <Plus size={16} />
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {formData.tags.map((tag, index) => (
-                      <span
-                        key={index}
-                        className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm flex items-center space-x-1"
-                      >
-                        <span>{tag}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeTag(index)}
-                          className="text-green-600 hover:text-green-800"
-                        >
-                          <X size={14} />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                </div>
+                {/* Tags section removed */}
               </div>
             )}
 
@@ -728,79 +643,42 @@ const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClos
                     </label>
                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                       <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                      <input
+                        ref={resumeInputRef}
+                        type="file"
+                        accept=".pdf,.doc,.docx"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files && e.target.files[0];
+                          if (!file) return;
+                          if (candidate?.id && companyId) {
+                            await uploadFile(file, 'resume', true);
+                          } else {
+                            setPendingResumeFile(file);
+                          }
+                          e.currentTarget.value = '';
+                        }}
+                      />
                       <div className="mt-4">
                         <button
                           type="button"
-                          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                          onClick={() => { resumeInputRef.current?.click(); }}
+                          disabled={uploading}
+                          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-60"
                         >
-                          Upload Resume
+                          {uploading ? 'Uploading...' : (pendingResumeFile ? 'Change Attached Resume' : 'Upload Resume')}
                         </button>
                       </div>
                       <p className="mt-2 text-sm text-gray-500">
                         PDF, DOC, or DOCX up to 10MB
                       </p>
+                      {!candidate?.id && pendingResumeFile && (
+                        <p className="mt-2 text-xs text-gray-600">Attached: <strong>{pendingResumeFile.name}</strong> (will upload on Save)</p>
+                      )}
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Cover Letter
-                    </label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                      <FileText className="mx-auto h-12 w-12 text-gray-400" />
-                      <div className="mt-4">
-                        <button
-                          type="button"
-                          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-                        >
-                          Upload Cover Letter
-                        </button>
-                      </div>
-                      <p className="mt-2 text-sm text-gray-500">
-                        PDF, DOC, or DOCX up to 5MB
-                      </p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Portfolio
-                    </label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                      <Globe className="mx-auto h-12 w-12 text-gray-400" />
-                      <div className="mt-4">
-                        <button
-                          type="button"
-                          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-                        >
-                          Upload Portfolio
-                        </button>
-                      </div>
-                      <p className="mt-2 text-sm text-gray-500">
-                        PDF, ZIP, or provide URL
-                      </p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Additional Documents
-                    </label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                      <Plus className="mx-auto h-12 w-12 text-gray-400" />
-                      <div className="mt-4">
-                        <button
-                          type="button"
-                          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-                        >
-                          Upload Documents
-                        </button>
-                      </div>
-                      <p className="mt-2 text-sm text-gray-500">
-                        Certificates, references, etc.
-                      </p>
-                    </div>
-                  </div>
+                  {/* Additional Documents section removed */}
                 </div>
               </div>
             )}

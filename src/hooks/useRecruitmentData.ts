@@ -289,7 +289,6 @@ export const useCandidates = (filters?: FilterOptions) => {
             source,
             rating,
             is_blacklisted,
-            gdpr_consent,
             created_at,
             company_id
           `)
@@ -369,7 +368,7 @@ export const useCandidates = (filters?: FilterOptions) => {
           tags: [], // Tags might be in a separate table
           rating: c.rating || undefined,
           isBlacklisted: !!c.is_blacklisted,
-          gdprConsent: !!c.gdpr_consent,
+          gdprConsent: false,
           createdAt: c.created_at ? new Date(c.created_at) : new Date(),
         }));
 
@@ -525,7 +524,6 @@ export const useApplications = (filters?: FilterOptions) => {
             source,
             rating,
             is_blacklisted,
-            gdpr_consent,
             created_at,
             company_id
           `)
@@ -653,7 +651,7 @@ export const useApplications = (filters?: FilterOptions) => {
             tags: [],
             rating: candidateRow.rating,
             isBlacklisted: !!candidateRow.is_blacklisted,
-            gdprConsent: !!candidateRow.gdpr_consent,
+            gdprConsent: false,
             createdAt: candidateRow.created_at ? new Date(candidateRow.created_at) : new Date(),
           } : {} as Candidate;
 
