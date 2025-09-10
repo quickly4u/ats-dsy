@@ -540,13 +540,7 @@ const CompanySettings: React.FC = () => {
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Company Settings</h1>
-          <p className="text-gray-600 mt-1">
-            Configure your company profile and recruitment settings
-          </p>
-        </div>
+      <div className="flex items-center justify-end mb-6">
         <button
           onClick={handleSave}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"

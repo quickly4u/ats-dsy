@@ -128,28 +128,11 @@ const CandidatesList: React.FC = () => {
   return (
     <>
     <div className="p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Candidates</h1>
-          <p className="text-gray-600 mt-1">
-            Manage candidate profiles and applications
-          </p>
-        </div>
-        <div className="flex items-center space-x-3">
-          <button 
-            onClick={() => setShowCandidateForm(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
-          >
-            <Plus size={20} />
-            <span>Add Candidate</span>
-          </button>
-        </div>
-      </div>
+      {/* Header actions moved into toolbar below */}
 
       {/* Search and Filters */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-        <div className="flex items-center space-x-4 mb-4">
+        <div className="flex items-center justify-between gap-4 mb-4">
           <div className="flex-1 relative">
             <Search 
               size={20} 
@@ -162,13 +145,22 @@ const CandidatesList: React.FC = () => {
               onChange={(e) => handleSearch(e.target.value)}
             />
           </div>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center space-x-2"
-          >
-            <Filter size={20} />
-            <span>Filters</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center space-x-2"
+            >
+              <Filter size={18} />
+              <span>Filters</span>
+            </button>
+            <button 
+              onClick={() => setShowCandidateForm(true)}
+              className="bg-blue-600 text-white px-3 py-2 text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+            >
+              <Plus size={18} />
+              <span>Add Candidate</span>
+            </button>
+          </div>
         </div>
       </div>
 

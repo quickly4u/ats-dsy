@@ -285,30 +285,11 @@ const ApplicationsList: React.FC = () => {
     <>
     <div className="p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Applications</h1>
-          <p className="text-gray-600 mt-1">
-            Track candidates through your hiring pipeline
-          </p>
-        </div>
-        <div className="flex items-center space-x-3">
-          <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center space-x-2">
-            <Download size={20} />
-            <span>Export</span>
-          </button>
-          <button 
-            onClick={() => setShowApplicationForm(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
-            <Plus size={20} />
-            <span>Add Application</span>
-          </button>
-        </div>
-      </div>
+      {/* Header actions moved into toolbar below */}
 
       {/* Search and Filters */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-        <div className="flex items-center space-x-4 mb-4">
+        <div className="flex items-center justify-between gap-4 mb-4">
           <div className="flex-1 relative">
             <Search 
               size={20} 
@@ -321,26 +302,38 @@ const ApplicationsList: React.FC = () => {
               onChange={(e) => handleSearch(e.target.value)}
             />
           </div>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center space-x-2"
-          >
-            <Filter size={20} />
-            <span>Filters</span>
-          </button>
-          <div className="flex items-center border border-gray-300 rounded-lg">
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setViewMode('pipeline')}
-              className={`px-3 py-2 ${viewMode === 'pipeline' ? 'bg-blue-50 text-blue-600' : 'text-gray-600'}`}
+              onClick={() => setShowFilters(!showFilters)}
+              className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center space-x-2"
             >
-              Pipeline
+              <Filter size={18} />
+              <span>Filters</span>
             </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`px-3 py-2 ${viewMode === 'list' ? 'bg-blue-50 text-blue-600' : 'text-gray-600'}`}
-            >
-              List
+            <button className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center space-x-2">
+              <Download size={18} />
+              <span>Export</span>
             </button>
+            <button 
+              onClick={() => setShowApplicationForm(true)}
+              className="bg-blue-600 text-white px-3 py-2 text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
+              <Plus size={18} />
+              <span>Add Application</span>
+            </button>
+            <div className="flex items-center border border-gray-300 rounded-lg ml-2">
+              <button
+                onClick={() => setViewMode('pipeline')}
+                className={`px-3 py-2 text-sm ${viewMode === 'pipeline' ? 'bg-blue-50 text-blue-600' : 'text-gray-600'}`}
+              >
+                Pipeline
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`px-3 py-2 text-sm ${viewMode === 'list' ? 'bg-blue-50 text-blue-600' : 'text-gray-600'}`}
+              >
+                List
+              </button>
+            </div>
           </div>
         </div>
 

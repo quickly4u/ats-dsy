@@ -127,7 +127,7 @@ const AppContent: React.FC = () => {
           <Header 
             title={getSectionTitle()}
             subtitle={getSectionSubtitle()}
-            showSearch={['jobs', 'candidates', 'applications'].includes(getActiveSection())}
+            showSearch={false}
           />
           
           {/* Main Content Area */}

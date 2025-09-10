@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { 
-  Settings, 
   Save, 
   Database, 
   Mail, 
@@ -11,7 +10,6 @@ import {
   HardDrive,
   Cpu,
   Activity,
-  AlertTriangle,
   CheckCircle,
   Clock
 } from 'lucide-react';
@@ -293,13 +291,7 @@ const SystemSettings: React.FC = () => {
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">System Settings</h1>
-          <p className="text-gray-600 mt-1">
-            Monitor and configure system-wide settings
-          </p>
-        </div>
+      <div className="flex items-center justify-end mb-6">
         <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
           <Save size={20} />
           <span>Save Changes</span>
