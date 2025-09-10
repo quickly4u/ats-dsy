@@ -60,22 +60,70 @@ const ApplicationsList: React.FC = () => {
 
       // Determine stage to use: selected by user or default "Applied"
       let stageIdToUse = (applicationData as any).stageId as string | undefined;
-      if (!stageIdToUse) {
-        const { data: defaultStage, error: stageError } = await supabase
-          .from('custom_stages')
-          .select('id')
-          .eq('company_id', companyId)
-          .eq('stage_type', 'application')
-          .eq('is_default', true)
-          .eq('is_active', true)
-          .single();
+      
+      // Always verify the stage exists in custom_stages or get the default one
+      const { data: stage, error: stageError } = await supabase
+        .from('custom_stages')
+        .select('id')
+        .eq('id', stageIdToUse || '')
+        .eq('company_id', companyId)
+        .eq('is_active', true)
+        .single();
+      
+      // If stage doesn't exist or there was an error, get a sensible default custom stage
+      if (stageError || !stage) {
+        console.warn('Stage not found or invalid, selecting a default custom stage');
+        // 1) Try: application-type AND is_default
+        let defaultStageId: string | null = null;
+        {
+          const { data, error } = await supabase
+            .from('custom_stages')
+            .select('id')
+            .eq('company_id', companyId)
+            .eq('stage_type', 'application')
+            .eq('is_default', true)
+            .eq('is_active', true)
+            .order('order_index', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          if (!error && data) defaultStageId = data.id;
+        }
 
-        if (stageError || !defaultStage) {
-          console.error('Error fetching default stage:', stageError);
-          alert('Unable to find default application stage. Please contact support.');
+        // 2) Fallback: first application-type stage by order_index
+        if (!defaultStageId) {
+          const { data, error } = await supabase
+            .from('custom_stages')
+            .select('id')
+            .eq('company_id', companyId)
+            .eq('stage_type', 'application')
+            .eq('is_active', true)
+            .order('order_index', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          if (!error && data) defaultStageId = data.id;
+        }
+
+        // 3) Final fallback: any first custom stage for the company
+        if (!defaultStageId) {
+          const { data, error } = await supabase
+            .from('custom_stages')
+            .select('id')
+            .eq('company_id', companyId)
+            .eq('is_active', true)
+            .order('order_index', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          if (!error && data) defaultStageId = data.id;
+        }
+
+        if (!defaultStageId) {
+          console.error('No custom stages available to assign');
+          alert('No pipeline stages are configured for your company. Please create at least one stage in Settings > Pipeline Stages.');
           return;
         }
-        stageIdToUse = defaultStage.id;
+        stageIdToUse = defaultStageId;
+      } else {
+        stageIdToUse = stage.id;
       }
 
       const { data, error } = await supabase
