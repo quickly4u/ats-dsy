@@ -29,7 +29,7 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
   const [activeTab, setActiveTab] = useState<'external' | 'internal'>(initialTab);
   const { clients: allClients, isLoading: clientsLoading } = useClients();
   const clientsOptions = useMemo(() => (allClients || []).map((c: any) => ({ id: c.id, name: c.name })), [allClients]);
-  const { externalContacts, internalContacts, stats, isLoading, error, createContact } = useContacts();
+  const { externalContacts, internalContacts, stats, isLoading, error, createContact, updateContact, deleteContact } = useContacts();
   const [teamMembers, setTeamMembers] = useState<TeamMemberOption[]>([]);
   const [teamLoading, setTeamLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -37,6 +37,7 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
   const [showFilters, setShowFilters] = useState(false);
   const [showSPOCForm, setShowSPOCForm] = useState(false);
   const [spocFormType, setSPOCFormType] = useState<'external' | 'internal'>('external');
+  const [editingContact, setEditingContact] = useState<any | null>(null);
 
   // Fetch team members for internal SPOC assignment
   useEffect(() => {
@@ -92,34 +93,62 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
 
   const handleSaveSPOC = async (spocData: any) => {
     try {
-      if (spocFormType === 'external') {
-        await createContact({
-          contactType: 'external',
-          clientId: spocData.clientId,
-          firstName: spocData.firstName,
-          lastName: spocData.lastName,
-          email: spocData.email,
-          phone: spocData.phone,
-          designation: spocData.designation,
-          department: spocData.department,
-          isPrimary: !!spocData.isPrimary,
-          linkedinUrl: spocData.linkedinUrl,
-          notes: spocData.notes,
-          isActive: !!spocData.isActive,
-        });
+      if (editingContact) {
+        // Update existing contact
+        if (spocFormType === 'external') {
+          await updateContact(editingContact.id, {
+            clientId: spocData.clientId,
+            firstName: spocData.firstName,
+            lastName: spocData.lastName,
+            email: spocData.email,
+            phone: spocData.phone,
+            designation: spocData.designation,
+            department: spocData.department,
+            isPrimary: !!spocData.isPrimary,
+            linkedinUrl: spocData.linkedinUrl,
+            notes: spocData.notes,
+            isActive: !!spocData.isActive,
+          });
+        } else {
+          await updateContact(editingContact.id, {
+            userId: spocData.userId,
+            spocLevel: spocData.level,
+            assignedClientIds: spocData.clientIds || [],
+            isActive: !!spocData.isActive,
+          });
+        }
       } else {
-        await createContact({
-          contactType: 'internal',
-          userId: spocData.userId,
-          firstName: spocData.firstName || 'Internal',
-          lastName: spocData.lastName || 'SPOC',
-          email: spocData.email || 'internal@company.com',
-          spocLevel: spocData.level,
-          assignedClientIds: spocData.clientIds || [],
-          isActive: !!spocData.isActive,
-        });
+        // Create new contact
+        if (spocFormType === 'external') {
+          await createContact({
+            contactType: 'external',
+            clientId: spocData.clientId,
+            firstName: spocData.firstName,
+            lastName: spocData.lastName,
+            email: spocData.email,
+            phone: spocData.phone,
+            designation: spocData.designation,
+            department: spocData.department,
+            isPrimary: !!spocData.isPrimary,
+            linkedinUrl: spocData.linkedinUrl,
+            notes: spocData.notes,
+            isActive: !!spocData.isActive,
+          });
+        } else {
+          await createContact({
+            contactType: 'internal',
+            userId: spocData.userId,
+            firstName: spocData.firstName || 'Internal',
+            lastName: spocData.lastName || 'SPOC',
+            email: spocData.email || 'internal@company.com',
+            spocLevel: spocData.level,
+            assignedClientIds: spocData.clientIds || [],
+            isActive: !!spocData.isActive,
+          });
+        }
       }
       setShowSPOCForm(false);
+      setEditingContact(null);
     } catch (err: any) {
       console.error('Failed to save SPOC:', err);
     }
@@ -161,10 +190,20 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <button className="text-gray-400 hover:text-gray-600">
+                  <button
+                    onClick={() => { setSPOCFormType('external'); setEditingContact(contact); setShowSPOCForm(true); }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
                     <Edit className="w-4 h-4" />
                   </button>
-                  <button className="text-gray-400 hover:text-red-600">
+                  <button
+                    onClick={async () => {
+                      if (confirm('Are you sure you want to delete this SPOC?')) {
+                        await deleteContact(contact.id);
+                      }
+                    }}
+                    className="text-gray-400 hover:text-red-600"
+                  >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -224,10 +263,20 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <button className="text-gray-400 hover:text-gray-600">
+                  <button
+                    onClick={() => { setSPOCFormType('internal'); setEditingContact(contact); setShowSPOCForm(true); }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
                     <Edit className="w-4 h-4" />
                   </button>
-                  <button className="text-gray-400 hover:text-red-600">
+                  <button
+                    onClick={async () => {
+                      if (confirm('Are you sure you want to delete this SPOC?')) {
+                        await deleteContact(contact.id);
+                      }
+                    }}
+                    className="text-gray-400 hover:text-red-600"
+                  >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -270,6 +319,7 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
         <button 
           onClick={() => {
             setSPOCFormType('external');
+            setEditingContact(null);
             setShowSPOCForm(true);
           }}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
@@ -427,6 +477,7 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
           onSave={handleSaveSPOC}
           clients={clientsOptions}
           teamMembers={teamMembers}
+          spoc={editingContact as any}
         />
       )}
     </div>

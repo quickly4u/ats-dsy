@@ -68,7 +68,13 @@ export const useJobs = (filters?: FilterOptions) => {
             expires_at,
             created_at,
             client_id,
-            company_id
+            company_id,
+            external_spoc_id,
+            primary_internal_spoc_id,
+            secondary_internal_spoc_id,
+            hiring_manager_id,
+            min_experience_years,
+            education_level
           `)
           .eq('company_id', companyId)
           .order('created_at', { ascending: false });
@@ -77,13 +83,30 @@ export const useJobs = (filters?: FilterOptions) => {
           throw jobError;
         }
 
-        // Transform to Job type (simplified without complex relations for now)
+        // Build lookup maps for related entities
+        const clientIds = Array.from(new Set((jobRows || []).map((j: any) => j.client_id).filter(Boolean)));
+        const userIds = Array.from(new Set((jobRows || [])
+          .flatMap((j: any) => [j.primary_internal_spoc_id, j.secondary_internal_spoc_id, j.hiring_manager_id])
+          .filter(Boolean)));
+        const contactIds = Array.from(new Set((jobRows || []).map((j: any) => j.external_spoc_id).filter(Boolean)));
+
+        const [clientsRes, usersRes, contactsRes] = await Promise.all([
+          clientIds.length ? supabase.from('clients').select('id, name').in('id', clientIds) : Promise.resolve({ data: [], error: null }),
+          userIds.length ? supabase.from('users').select('id, first_name, last_name, email, avatar').in('id', userIds) : Promise.resolve({ data: [], error: null }),
+          contactIds.length ? supabase.from('contacts').select('id, first_name, last_name, designation').in('id', contactIds) : Promise.resolve({ data: [], error: null }),
+        ]);
+
+        const clientsMap = new Map((clientsRes.data || []).map((c: any) => [c.id, c]));
+        const usersMap = new Map((usersRes.data || []).map((u: any) => [u.id, u]));
+        const contactsMap = new Map((contactsRes.data || []).map((c: any) => [c.id, c]));
+
+        // Transform to Job type with related names populated
         let result: Job[] = (jobRows || []).map((j: any) => ({
           id: j.id,
           clientId: j.client_id || '',
           client: {
             id: j.client_id || '',
-            name: 'Client Name', // Would need separate client fetch
+            name: clientsMap.get(j.client_id)?.name || 'Client',
             companyName: 'Company Name',
             industry: 'Technology',
             contactInfo: { email: '', phone: '' },
@@ -107,17 +130,48 @@ export const useJobs = (filters?: FilterOptions) => {
             createdAt: new Date(),
             updatedAt: new Date()
           },
-          externalSpocId: '',
-          externalSpoc: {
-            id: '', clientId: '', client: {} as any, firstName: '', lastName: '', 
-            email: '', designation: '', isPrimary: false, isActive: true, 
-            createdAt: new Date(), updatedAt: new Date()
-          },
-          primaryInternalSpocId: '',
-          primaryInternalSpoc: {
-            id: '', userId: '', user: {} as any, level: 'primary', clientIds: [], 
-            clients: [], isActive: true, assignedAt: new Date(), assignedBy: ''
-          },
+          externalSpocId: j.external_spoc_id || '',
+          externalSpoc: (() => {
+            const c = contactsMap.get(j.external_spoc_id);
+            return {
+              id: j.external_spoc_id || '',
+              clientId: j.client_id || '',
+              client: {} as any,
+              firstName: c?.first_name || '',
+              lastName: c?.last_name || '',
+              email: '',
+              designation: c?.designation || '',
+              isPrimary: false,
+              isActive: true,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            } as any;
+          })(),
+          primaryInternalSpocId: j.primary_internal_spoc_id || '',
+          primaryInternalSpoc: (() => {
+            const u = usersMap.get(j.primary_internal_spoc_id);
+            return {
+              id: j.primary_internal_spoc_id || '',
+              userId: j.primary_internal_spoc_id || '',
+              user: u ? {
+                id: u.id,
+                email: u.email || '',
+                firstName: u.first_name || '',
+                lastName: u.last_name || '',
+                company: { id: '', name: '', slug: '', subscriptionPlan: 'free', createdAt: new Date() },
+                roles: [],
+                isActive: true,
+                createdAt: new Date(),
+              } : ({} as any),
+              level: 'primary',
+              clientIds: [],
+              clients: [],
+              isActive: true,
+              assignedAt: new Date(),
+              assignedBy: ''
+            } as any;
+          })(),
+          secondaryInternalSpocId: j.secondary_internal_spoc_id || '',
           assignedRecruiters: [],
           title: j.title,
           department: { id: '', name: 'General', isActive: true },
@@ -133,13 +187,23 @@ export const useJobs = (filters?: FilterOptions) => {
           status: j.status,
           publishedAt: j.published_at ? new Date(j.published_at) : undefined,
           expiresAt: j.expires_at ? new Date(j.expires_at) : undefined,
-          hiringManager: {
-            id: '', email: '', firstName: '', lastName: '', company: {} as any,
-            roles: [], isActive: true, createdAt: new Date()
-          },
+          hiringManager: (() => {
+            const u = usersMap.get(j.hiring_manager_id);
+            return {
+              id: j.hiring_manager_id || '',
+              email: u?.email || '',
+              firstName: u?.first_name || '',
+              lastName: u?.last_name || '',
+              company: { id: '', name: '', slug: '', subscriptionPlan: 'free', createdAt: new Date() },
+              roles: [], isActive: true, createdAt: new Date()
+            } as any;
+          })(),
           applicationsCount: 0, // Would need separate count query
           viewsCount: 0,
           createdAt: j.created_at ? new Date(j.created_at) : new Date(),
+          // Extra fields for editing
+          ...(j.min_experience_years != null ? { minExperienceYears: j.min_experience_years } : {}),
+          ...(j.education_level ? { educationLevel: j.education_level } : {}),
         }));
 
         // Apply filters

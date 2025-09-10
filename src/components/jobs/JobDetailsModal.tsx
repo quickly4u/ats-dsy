@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, MapPin, DollarSign, Calendar, Users, Eye } from 'lucide-react';
 import type { Job } from '../../types';
 import { supabase } from '../../lib/supabase';
 import SelectCandidatesModal from '../modals/SelectCandidatesModal';
+import { getJobRequiredSkills } from '../../lib/jobSkillsApi';
 
 interface JobDetailsModalProps {
   job?: Job;
@@ -30,6 +31,25 @@ const formatDate = (date?: Date) => {
 const JobDetailsModal: React.FC<JobDetailsModalProps> = ({ job, isOpen, onClose }) => {
   const [showSelectCandidates, setShowSelectCandidates] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [requiredSkills, setRequiredSkills] = useState<{ name: string; isMandatory: boolean; experienceLevel?: string }[]>([]);
+
+  useEffect(() => {
+    const loadSkills = async () => {
+      if (!isOpen || !job?.id) return;
+      try {
+        const existing = await getJobRequiredSkills(job.id);
+        setRequiredSkills(existing.map(s => ({
+          name: s.skill_name,
+          isMandatory: !!s.is_mandatory,
+          experienceLevel: s.experience_level || undefined,
+        })));
+      } catch (e) {
+        console.warn('Failed to load job skills for details view', e);
+        setRequiredSkills([]);
+      }
+    };
+    loadSkills();
+  }, [isOpen, job?.id]);
 
   if (!isOpen || !job) return null;
 
@@ -70,6 +90,24 @@ const JobDetailsModal: React.FC<JobDetailsModalProps> = ({ job, isOpen, onClose 
               </div>
             </div>
 
+            {/* Screening Summary */}
+            {(job.minExperienceYears != null || job.educationLevel) && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-700">
+                {job.minExperienceYears != null && (
+                  <div>
+                    <span className="text-gray-500">Minimum Experience:</span>{' '}
+                    <span className="font-medium">{job.minExperienceYears} years</span>
+                  </div>
+                )}
+                {job.educationLevel && (
+                  <div>
+                    <span className="text-gray-500">Education Level:</span>{' '}
+                    <span className="font-medium capitalize">{job.educationLevel.replace('-', ' ')}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Description */}
             <div>
               <h3 className="text-md font-semibold text-gray-900 mb-2">Job Description</h3>
@@ -107,6 +145,22 @@ const JobDetailsModal: React.FC<JobDetailsModalProps> = ({ job, isOpen, onClose 
                 </span>
               </div>
             </div>
+
+            {/* Required Skills */}
+            {requiredSkills.length > 0 && (
+              <div>
+                <h3 className="text-md font-semibold text-gray-900 mb-2">Required Skills</h3>
+                <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                  {requiredSkills.map((s, idx) => (
+                    <li key={idx}>
+                      <span className={s.isMandatory ? 'font-semibold' : ''}>{s.name}</span>
+                      {s.experienceLevel ? <span className="text-gray-500"> • {s.experienceLevel}</span> : null}
+                      {s.isMandatory ? <span className="ml-2 text-xs text-red-600 bg-red-100 px-2 py-0.5 rounded">Mandatory</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="flex items-center space-x-6 text-sm text-gray-700">
               <div className="flex items-center">

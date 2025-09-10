@@ -58,6 +58,9 @@ export interface Job {
   expiresAt?: Date;
   hiringManager: User;
   assignedRecruiter?: User;
+  // Screening fields
+  minExperienceYears?: number;
+  educationLevel?: string;
   applicationsCount: number;
   viewsCount: number;
   createdAt: Date;

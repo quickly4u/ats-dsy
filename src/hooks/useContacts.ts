@@ -47,6 +47,8 @@ export interface CreateContactInput {
 }
 
 export interface UpdateContactInput {
+  clientId?: string; // allow changing client for external contact
+  userId?: string;   // allow changing user for internal contact
   firstName?: string;
   lastName?: string;
   email?: string;
@@ -248,6 +250,8 @@ export const useContacts = (contactType?: 'external' | 'internal' | 'all') => {
   const updateContact = useCallback(async (id: string, input: UpdateContactInput) => {
     try {
       const updates: any = {};
+      if (input.clientId !== undefined) updates.client_id = input.clientId || null;
+      if (input.userId !== undefined) updates.user_id = input.userId || null;
       if (input.firstName !== undefined) updates.first_name = input.firstName;
       if (input.lastName !== undefined) updates.last_name = input.lastName;
       if (input.email !== undefined) updates.email = input.email;

@@ -29,10 +29,12 @@ interface ApplicationPipelineProps {
   isLoading: boolean;
   companyId: string;
   onApplicationMove?: (applicationId: string, newStage: string) => void;
+  onViewDetails?: (applicationId: string) => void;
 }
 
 interface DraggableApplicationCardProps {
   application: Application;
+  onViewDetails?: (applicationId: string) => void;
 }
 
 interface DroppableStageProps {
@@ -82,7 +84,7 @@ const DroppableStage: React.FC<DroppableStageProps> = ({ stage, applications, ch
   );
 };
 
-const DraggableApplicationCard: React.FC<DraggableApplicationCardProps> = ({ application }) => {
+const DraggableApplicationCard: React.FC<DraggableApplicationCardProps> = ({ application, onViewDetails }) => {
   const {
     attributes,
     listeners,
@@ -159,11 +161,21 @@ const DraggableApplicationCard: React.FC<DraggableApplicationCardProps> = ({ app
           <span className="font-medium text-gray-900">{application.score}/100</span>
         </div>
       )}
+
+      <div className="mt-3">
+        <button
+          type="button"
+          onClick={() => onViewDetails?.(application.id)}
+          className="px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
+        >
+          View Details
+        </button>
+      </div>
     </div>
   );
 };
 
-const ApplicationPipeline: React.FC<ApplicationPipelineProps> = ({ applications, isLoading, companyId, onApplicationMove }) => {
+const ApplicationPipeline: React.FC<ApplicationPipelineProps> = ({ applications, isLoading, companyId, onApplicationMove, onViewDetails }) => {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [localApplications, setLocalApplications] = useState<Application[]>(applications);
   
@@ -340,7 +352,7 @@ const ApplicationPipeline: React.FC<ApplicationPipelineProps> = ({ applications,
               >
                 <div className="space-y-3">
                   {stageApplications.map((application) => (
-                    <DraggableApplicationCard key={application.id} application={application} />
+                    <DraggableApplicationCard key={application.id} application={application} onViewDetails={onViewDetails} />
                   ))}
                 </div>
               </SortableContext>

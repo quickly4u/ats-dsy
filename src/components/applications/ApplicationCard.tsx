@@ -16,12 +16,14 @@ interface ApplicationCardProps {
   application: Application;
   isSelected: boolean;
   onSelect: (selected: boolean) => void;
+  onViewDetails?: (applicationId: string) => void;
 }
 
 const ApplicationCard: React.FC<ApplicationCardProps> = ({ 
   application, 
   isSelected, 
-  onSelect 
+  onSelect, 
+  onViewDetails
 }) => {
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -197,7 +199,7 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
               <button className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                 <MessageSquare size={16} />
               </button>
-              <button className="px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors">
+              <button onClick={() => onViewDetails?.(application.id)} className="px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors">
                 View Details
               </button>
             </div>

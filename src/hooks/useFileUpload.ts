@@ -2,16 +2,6 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from './useToast';
 
-// Mock file storage for demo purposes - replace with actual storage solution
-const mockFileStorage = {
-  uploadFile: async (file: File): Promise<string> => {
-    // Simulate upload delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    // Return a mock URL - in production, this would be the actual file URL
-    return `https://example.com/files/${Date.now()}-${file.name}`;
-  }
-};
-
 interface UploadedFile {
   id: string;
   fileName: string;
@@ -43,12 +33,23 @@ export const useFileUpload = ({ candidateId, companyId }: UseFileUploadOptions) 
       setUploading(true);
 
       // Generate unique file path
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${candidateId}/${Date.now()}.${fileExt}`;
-      const storagePath = `candidate-files/${fileName}`;
+      const safeName = file.name.replace(/[^a-zA-Z0-9_.-]/g, '_');
+      const fileName = `${companyId}/${candidateId}/${Date.now()}_${safeName}`;
+      const storagePath = fileName; // within 'candidate-files' bucket
 
-      // Upload file using mock storage (replace with actual storage in production)
-      const fileUrl = await mockFileStorage.uploadFile(file);
+      // Upload file to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('candidate-files')
+        .upload(storagePath, file, { upsert: false });
+      if (uploadError) {
+        throw new Error(`Upload failed: ${uploadError.message}`);
+      }
+
+      // Get public URL
+      const { data: publicUrl } = supabase.storage
+        .from('candidate-files')
+        .getPublicUrl(storagePath);
+      const fileUrl = publicUrl.publicUrl;
 
       // Save file metadata to database
       const { data: fileData, error: dbError } = await supabase

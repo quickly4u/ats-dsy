@@ -40,49 +40,61 @@ interface SPOCFormProps {
 }
 
 const SPOCForm: React.FC<SPOCFormProps> = ({ spoc, type, isOpen, onClose, onSave, clients = [], teamMembers = [], defaultClientId }) => {
-  const [formData, setFormData] = useState<ExternalSPOCFormData | InternalSPOCFormData>(() => {
-    if (type === 'external' && spoc && 'clientId' in spoc) {
+  const buildInitial = (): ExternalSPOCFormData | InternalSPOCFormData => {
+    if (type === 'external' && spoc && 'clientId' in (spoc as any)) {
+      const s: any = spoc;
       return {
-        clientId: spoc.clientId || '',
-        firstName: spoc.firstName || '',
-        lastName: spoc.lastName || '',
-        email: spoc.email || '',
-        phone: spoc.phone || '',
-        designation: spoc.designation || '',
-        department: spoc.department || '',
-        isPrimary: spoc.isPrimary || false,
-        linkedinUrl: spoc.linkedinUrl || '',
-        notes: spoc.notes || '',
-        isActive: spoc.isActive !== undefined ? spoc.isActive : true
-      };
-    } else if (type === 'internal' && spoc && 'userId' in spoc) {
-      return {
-        userId: spoc.userId || '',
-        level: spoc.level || 'primary',
-        clientIds: spoc.clientIds || [],
-        isActive: spoc.isActive !== undefined ? spoc.isActive : true
-      };
-    } else {
-      return type === 'external' ? {
-        clientId: defaultClientId || '',
-        firstName: '',
-        lastName: '',
-        email: '',
-        phone: '',
-        designation: '',
-        department: '',
-        isPrimary: false,
-        linkedinUrl: '',
-        notes: '',
-        isActive: true
-      } : {
-        userId: '',
-        level: 'primary',
-        clientIds: [],
-        isActive: true
+        clientId: s.clientId || '',
+        firstName: s.firstName || '',
+        lastName: s.lastName || '',
+        email: s.email || '',
+        phone: s.phone || '',
+        designation: s.designation || '',
+        department: s.department || '',
+        isPrimary: !!s.isPrimary,
+        linkedinUrl: s.linkedinUrl || '',
+        notes: s.notes || '',
+        isActive: s.isActive !== undefined ? !!s.isActive : true
       };
     }
-  });
+    if (type === 'internal' && spoc && 'userId' in (spoc as any)) {
+      const s: any = spoc;
+      return {
+        userId: s.userId || '',
+        level: (s.level || s.spocLevel || 'primary') as 'primary' | 'secondary',
+        clientIds: s.clientIds || (Array.isArray(s.assignedClients) ? s.assignedClients.map((c: any) => c.id) : []),
+        isActive: s.isActive !== undefined ? !!s.isActive : true
+      };
+    }
+    return type === 'external' ? {
+      clientId: defaultClientId || '',
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      designation: '',
+      department: '',
+      isPrimary: false,
+      linkedinUrl: '',
+      notes: '',
+      isActive: true
+    } : {
+      userId: '',
+      level: 'primary',
+      clientIds: [],
+      isActive: true
+    };
+  };
+
+  const [formData, setFormData] = useState<ExternalSPOCFormData | InternalSPOCFormData>(buildInitial);
+
+  // Reset form whenever the type or spoc changes while open
+  React.useEffect(() => {
+    if (isOpen) {
+      setFormData(buildInitial());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, type, (spoc as any)?.id]);
 
   // Typed helpers to update state safely without using `any`
   const setExternal = (patch: Partial<ExternalSPOCFormData>) =>

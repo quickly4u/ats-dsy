@@ -10,6 +10,7 @@ import { useApplications } from '../../hooks/useRecruitmentData';
 import { supabase, getCurrentUserCompanyId } from '../../lib/supabase';
 import type { Application, FilterOptions } from '../../types';
 import ApplicationCard from './ApplicationCard';
+import ApplicationDetailsModal from './ApplicationDetailsModal';
 import ApplicationPipeline from './ApplicationPipeline';
 import ApplicationForm from '../forms/ApplicationForm';
 
@@ -20,6 +21,8 @@ const ApplicationsList: React.FC = () => {
   const [selectedApplications, setSelectedApplications] = useState<Set<string>>(new Set());
   const [showApplicationForm, setShowApplicationForm] = useState(false);
   const [companyId, setCompanyId] = useState<string>('');
+  const [showDetails, setShowDetails] = useState(false);
+  const [detailsAppId, setDetailsAppId] = useState<string>('');
   
   const { applications, isLoading, error } = useApplications(filters);
   // Stages are fetched inside ApplicationPipeline and via explicit queries when needed.
@@ -47,7 +50,7 @@ const ApplicationsList: React.FC = () => {
     setSelectedApplications(newSelected);
   };
 
-  const handleSaveApplication = async (applicationData: Partial<Application>) => {
+  const handleSaveApplication = async (applicationData: Partial<Application> & { customResponses?: any[] }) => {
     try {
       const companyId = await getCurrentUserCompanyId();
       if (!companyId) {
@@ -96,6 +99,77 @@ const ApplicationsList: React.FC = () => {
         console.error('Error creating application:', error);
         alert('Failed to create application. Please try again.');
         return;
+      }
+
+      // Save custom responses if provided (text/textarea/select/radio/checkbox/file)
+      const responses = (applicationData as any).customResponses as Array<{
+        questionId?: string;
+        type?: string;
+        answer?: string | string[];
+        file?: File | null;
+        usePrimary?: boolean;
+        fileUrl?: string | null;
+      }> | undefined;
+      if (data?.id && responses && responses.length) {
+        // Upload files first (if any)
+        const withUrls = await Promise.all(responses.map(async (r) => {
+          if (!r?.file) return r;
+          try {
+            const safeName = (r.file.name || 'upload').replace(/[^a-zA-Z0-9_.-]/g, '_');
+            const path = `${companyId}/${data.id}/${r.questionId}/${Date.now()}_${safeName}`;
+            const bucket = 'candidate-files';
+            const uploadRes = await supabase.storage.from(bucket).upload(path, r.file, { upsert: false });
+            if (uploadRes.error) {
+              console.warn('File upload failed:', uploadRes.error.message);
+              return r;
+            }
+            const { data: publicUrl } = supabase.storage.from(bucket).getPublicUrl(path);
+            return { ...r, fileUrl: publicUrl.publicUrl, storagePath: path } as any;
+          } catch (e) {
+            console.warn('Unexpected error uploading file:', e);
+            return r;
+          }
+        }));
+
+        const rows = withUrls
+          .filter(r => r && r.questionId)
+          .map(r => ({
+            application_id: data.id,
+            job_question_id: r.questionId!,
+            answer_text: Array.isArray(r.answer) ? null : (r.answer as string) || null,
+            answer_multi: Array.isArray(r.answer) ? (r.answer as string[]) : null,
+            file_url: (r as any).fileUrl || null,
+          }));
+
+        if (rows.length) {
+          const { error: respErr } = await supabase
+            .from('application_question_responses')
+            .insert(rows);
+          if (respErr) {
+            console.warn('Failed to save application question responses:', respErr);
+          }
+        }
+
+        // Also record newly uploaded resumes/files at application time (skip when using primary)
+        const fileUploads = withUrls.filter((r: any) => r?.type === 'file' && r?.fileUrl && !r?.usePrimary);
+        if (fileUploads.length) {
+          const filesRows = fileUploads.map((r: any) => ({
+            application_id: data.id,
+            candidate_id: (applicationData as any).candidateId,
+            file_name: r.file?.name || null,
+            file_type: r.file?.type || null,
+            file_size: r.file?.size || null,
+            file_url: r.fileUrl,
+            storage_path: r.storagePath || null,
+            file_category: 'resume',
+          }));
+          const { error: appFilesErr } = await supabase
+            .from('application_files')
+            .insert(filesRows);
+          if (appFilesErr) {
+            console.warn('Failed to save application files:', appFilesErr);
+          }
+        }
       }
 
       console.log('Application created successfully:', data);
@@ -320,6 +394,7 @@ const ApplicationsList: React.FC = () => {
                 application={application}
                 isSelected={selectedApplications.has(application.id)}
                 onSelect={(selected) => handleApplicationSelect(application.id, selected)}
+                onViewDetails={(id) => { setDetailsAppId(id); setShowDetails(true); }}
               />
             ))
           )}
@@ -342,6 +417,11 @@ const ApplicationsList: React.FC = () => {
       isOpen={showApplicationForm}
       onClose={() => setShowApplicationForm(false)}
       onSave={handleSaveApplication}
+    />
+    <ApplicationDetailsModal
+      isOpen={showDetails}
+      onClose={() => { setShowDetails(false); setDetailsAppId(''); }}
+      applicationId={detailsAppId}
     />
     </>
   );

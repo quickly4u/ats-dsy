@@ -12,7 +12,7 @@ import {
   Star
 } from 'lucide-react';
 import type { Job } from '../../types';
-import { saveJobRequiredSkills, getJobRequiredSkills, getExternalSpocs, getInternalSpocs, getActiveClients } from '../../lib/jobSkillsApi';
+import { saveJobRequiredSkills, getJobRequiredSkills, getExternalSpocs, getInternalSpocs, getActiveClients, getJobApplicationQuestions, saveJobApplicationQuestions } from '../../lib/jobSkillsApi';
 import { getCurrentUserCompanyId } from '../../lib/supabase';
 
 interface JobFormProps {
@@ -42,9 +42,11 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
     salaryMax: job?.salaryMax?.toString() || '',
     status: job?.status || 'draft',
     expiresAt: job?.expiresAt ? new Date(job.expiresAt).toISOString().split('T')[0] : '',
+    minExperienceYears: (job as any)?.minExperienceYears?.toString?.() || '',
+    educationLevel: (job as any)?.educationLevel || '',
     requiredSkills: [] as { name: string; isMandatory: boolean; experienceLevel?: string }[],
     benefits: [] as string[],
-    customQuestions: [] as { question: string; type: string; required: boolean }[]
+    customQuestions: [] as { question: string; type: string; required: boolean; options?: string[] }[]
   });
 
   const [currentSkill, setCurrentSkill] = useState('');
@@ -58,6 +60,80 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
   const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
   const [loadingClients, setLoadingClients] = useState<boolean>(false);
   const [clientsError, setClientsError] = useState<string | null>(null);
+  // Local state for option input per question index
+  const [optionInputs, setOptionInputs] = useState<Record<number, string>>({});
+  // Validation errors for questions
+  const [questionErrors, setQuestionErrors] = useState<Record<number, string | null>>({});
+
+  const validateQuestionOptions = (index: number, q?: { type: string; options?: string[] }) => {
+    const question = q ?? formData.customQuestions[index];
+    if (!question) return;
+    const needsOptions = question.type === 'select' || question.type === 'radio' || question.type === 'checkbox';
+    const count = (question.options || []).filter(o => !!o && o.trim().length > 0).length;
+    setQuestionErrors(prev => ({
+      ...prev,
+      [index]: needsOptions && count < 2 ? 'At least 2 options are required for this question type.' : null
+    }));
+  };
+
+  // When opening in edit mode, prefill the form with saved job data.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (job) {
+      setFormData({
+        title: job.title || '',
+        clientId: job.clientId || '',
+        externalSpocId: job.externalSpocId || '',
+        primaryInternalSpocId: job.primaryInternalSpocId || '',
+        secondaryInternalSpocId: job.secondaryInternalSpocId || '',
+        departmentId: job.department?.id || '',
+        hiringManagerId: job.hiringManager?.id || '',
+        description: job.description || '',
+        requirements: job.requirements || '',
+        responsibilities: job.responsibilities || '',
+        employmentType: job.employmentType || 'full-time',
+        experienceLevel: job.experienceLevel || 'mid',
+        location: job.location || '',
+        remoteType: job.remoteType || 'hybrid',
+        salaryMin: job.salaryMin != null ? String(job.salaryMin) : '',
+        salaryMax: job.salaryMax != null ? String(job.salaryMax) : '',
+        status: job.status || 'draft',
+        expiresAt: job.expiresAt ? new Date(job.expiresAt).toISOString().split('T')[0] : '',
+        minExperienceYears: job.minExperienceYears != null ? String(job.minExperienceYears) : '',
+        educationLevel: job.educationLevel || '',
+        requiredSkills: [], // loaded separately below
+        benefits: [],
+        customQuestions: [],
+      });
+    } else {
+      // Reset to defaults for create mode
+      setFormData({
+        title: '',
+        clientId: '',
+        externalSpocId: '',
+        primaryInternalSpocId: '',
+        secondaryInternalSpocId: '',
+        departmentId: '',
+        hiringManagerId: '',
+        description: '',
+        requirements: '',
+        responsibilities: '',
+        employmentType: 'full-time',
+        experienceLevel: 'mid',
+        location: '',
+        remoteType: 'hybrid',
+        salaryMin: '',
+        salaryMax: '',
+        status: 'draft',
+        expiresAt: '',
+        minExperienceYears: '',
+        educationLevel: '',
+        requiredSkills: [],
+        benefits: [],
+        customQuestions: [],
+      });
+    }
+  }, [isOpen, job?.id]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -78,13 +154,22 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
         }
         
         if (job?.id) {
-          const existingSkills = await getJobRequiredSkills(job.id);
+          const [existingSkills, existingQuestions] = await Promise.all([
+            getJobRequiredSkills(job.id),
+            getJobApplicationQuestions(job.id)
+          ]);
           const mappedSkills = existingSkills.map(skill => ({
             name: skill.skill_name,
             isMandatory: skill.is_mandatory,
             experienceLevel: skill.experience_level
           }));
-          setFormData(prev => ({ ...prev, requiredSkills: mappedSkills }));
+          const mappedQuestions = (existingQuestions || []).sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)).map(q => ({
+            question: q.question,
+            type: q.question_type as any,
+            required: q.is_required,
+            options: q.options || []
+          }));
+          setFormData(prev => ({ ...prev, requiredSkills: mappedSkills, customQuestions: mappedQuestions }));
         }
       } catch (error: any) {
         console.error('Error loading data:', error);
@@ -107,6 +192,11 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
         try {
           const spocsData = await getExternalSpocs(formData.clientId);
           setExternalSpocs(spocsData);
+          // If currently selected external SPOC is not in the new list, clear it
+          setFormData(prev => ({
+            ...prev,
+            externalSpocId: spocsData?.some((s: any) => s.id === prev.externalSpocId) ? prev.externalSpocId : ''
+          }));
         } catch (error) {
           console.error('Error loading external spocs:', error);
           setExternalSpocs([]);
@@ -139,6 +229,21 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
         throw new Error('Your user is not associated with any company. Cannot create or update job.');
       }
 
+      // Validate custom questions: ensure at least 2 options for select/radio/checkbox
+      const invalids: number[] = [];
+      formData.customQuestions.forEach((q, i) => {
+        const needsOptions = q.type === 'select' || q.type === 'radio' || q.type === 'checkbox';
+        const count = (q.options || []).filter(o => !!o && o.trim().length > 0).length;
+        if (needsOptions && count < 2) invalids.push(i);
+      });
+      if (invalids.length) {
+        const errs: Record<number, string | null> = {};
+        invalids.forEach(i => errs[i] = 'At least 2 options are required for this question type.');
+        setQuestionErrors(prev => ({ ...prev, ...errs }));
+        setIsLoading(false);
+        return;
+      }
+
       const jobData = {
         ...formData,
         salaryMin: formData.salaryMin ? Number(formData.salaryMin) : undefined,
@@ -149,6 +254,8 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
         remoteType: formData.remoteType as 'remote' | 'hybrid' | 'on-site',
         status: formData.status as 'draft' | 'published' | 'paused' | 'closed',
         companyId,
+        minExperienceYears: formData.minExperienceYears ? Number(formData.minExperienceYears) : undefined,
+        educationLevel: formData.educationLevel || undefined,
       };
       
       const savedJob = await onSave(jobData);
@@ -161,6 +268,14 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
           experience_level: skill.experienceLevel
         }));
         await saveJobRequiredSkills(targetJobId, skillsToSave);
+
+        // Save custom application questions
+        await saveJobApplicationQuestions(targetJobId, (formData.customQuestions || []).map(q => ({
+          question: q.question,
+          type: q.type,
+          required: q.required,
+          options: q.options && q.options.length ? q.options : undefined
+        })));
       }
       
       onClose();
@@ -221,7 +336,7 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
   const addCustomQuestion = () => {
     setFormData(prev => ({
       ...prev,
-      customQuestions: [...prev.customQuestions, { question: '', type: 'text', required: false }]
+      customQuestions: [...prev.customQuestions, { question: '', type: 'text', required: false, options: [] }]
     }));
   };
 
@@ -232,6 +347,48 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
         i === index ? { ...q, [field]: value } : q
       )
     }));
+    if (field === 'type') {
+      // Re-validate when type changes
+      const next = { ...formData.customQuestions[index], [field]: value } as any;
+      validateQuestionOptions(index, next);
+    }
+  };
+
+  const addQuestionOption = (qIndex: number, optionValue: string) => {
+    if (!optionValue.trim()) return;
+    setFormData(prev => ({
+      ...prev,
+      customQuestions: prev.customQuestions.map((q, i) =>
+        i === qIndex ? { ...q, options: [...(q.options || []), optionValue.trim()] } : q
+      )
+    }));
+    validateQuestionOptions(qIndex);
+  };
+
+  const updateQuestionOption = (qIndex: number, optIndex: number, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      customQuestions: prev.customQuestions.map((q, i) =>
+        i === qIndex ? { 
+          ...q, 
+          options: (q.options || []).map((opt, oi) => oi === optIndex ? value : opt)
+        } : q
+      )
+    }));
+    validateQuestionOptions(qIndex);
+  };
+
+  const removeQuestionOption = (qIndex: number, optIndex: number) => {
+    setFormData(prev => ({
+      ...prev,
+      customQuestions: prev.customQuestions.map((q, i) =>
+        i === qIndex ? { 
+          ...q, 
+          options: (q.options || []).filter((_, oi) => oi !== optIndex)
+        } : q
+      )
+    }));
+    validateQuestionOptions(qIndex);
   };
 
   const removeCustomQuestion = (index: number) => {
@@ -833,6 +990,8 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
                     <input
                       type="number"
                       min="0"
+                      value={formData.minExperienceYears}
+                      onChange={(e) => setFormData(prev => ({ ...prev, minExperienceYears: e.target.value }))}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="e.g. 3"
                     />
@@ -842,7 +1001,11 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Education Level
                     </label>
-                    <select className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <select
+                      value={formData.educationLevel}
+                      onChange={(e) => setFormData(prev => ({ ...prev, educationLevel: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
                       <option value="">Any</option>
                       <option value="high-school">High School</option>
                       <option value="associate">Associate Degree</option>
@@ -938,6 +1101,58 @@ const JobForm: React.FC<JobFormProps> = ({ job, isOpen, onClose, onSave }) => {
                             </select>
                           </div>
                         </div>
+
+                        {/* Options editor for Multiple/Single choice and Checkbox */}
+                        {(question.type === 'select' || question.type === 'radio' || question.type === 'checkbox') && (
+                          <div className="mt-3">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Options
+                            </label>
+                            <div className="flex gap-2 mb-2">
+                              <input
+                                type="text"
+                                value={optionInputs[index] || ''}
+                                onChange={(e) => setOptionInputs(prev => ({ ...prev, [index]: e.target.value }))}
+                                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addQuestionOption(index, optionInputs[index] || ''))}
+                                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="Add an option"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => { addQuestionOption(index, optionInputs[index] || ''); setOptionInputs(prev => ({ ...prev, [index]: '' })); }}
+                                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                              >
+                                Add
+                              </button>
+                            </div>
+
+                            <div className="space-y-2">
+                              {(question.options || []).length === 0 && (
+                                <p className="text-sm text-gray-500">No options added yet</p>
+                              )}
+                              {(question.options || []).map((opt, oi) => (
+                                <div key={oi} className="flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    value={opt}
+                                    onChange={(e) => updateQuestionOption(index, oi, e.target.value)}
+                                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => removeQuestionOption(index, oi)}
+                                    className="text-red-600 hover:text-red-800"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              ))}
+                              {questionErrors[index] && (
+                                <p className="text-sm text-red-600">{questionErrors[index]}</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
 
                         <div className="mt-3">
                           <label className="flex items-center space-x-2">

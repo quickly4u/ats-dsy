@@ -174,10 +174,11 @@ export const getExternalSpocs = async (clientId: string) => {
     }
 
     const { data, error } = await supabase
-      .from('external_spocs')
+      .from('contacts')
       .select('*')
       .eq('client_id', clientId)
       .eq('company_id', companyId)
+      .eq('contact_type', 'external')
       .eq('is_active', true)
       .order('first_name');
 
@@ -241,10 +242,12 @@ export const createJob = async (jobData: any) => {
       expires_at: jobData.expiresAt ? new Date(jobData.expiresAt).toISOString() : null,
       company_id: companyId, // Always use current user's company
       client_id: jobData.clientId || null,
-      // If your schema includes these, uncomment:
-      // external_spoc_id: jobData.externalSpocId || null,
-      // primary_internal_spoc_id: jobData.primaryInternalSpocId || null,
-      // secondary_internal_spoc_id: jobData.secondaryInternalSpocId || null,
+      external_spoc_id: jobData.externalSpocId || null,
+      primary_internal_spoc_id: jobData.primaryInternalSpocId || null,
+      secondary_internal_spoc_id: jobData.secondaryInternalSpocId || null,
+      hiring_manager_id: jobData.hiringManagerId || null,
+      min_experience_years: typeof jobData.minExperienceYears === 'number' ? jobData.minExperienceYears : null,
+      education_level: jobData.educationLevel || null,
     };
 
     const { data, error } = await supabase
@@ -283,10 +286,12 @@ export const updateJob = async (jobId: string, jobData: any) => {
       status: jobData.status || 'draft',
       expires_at: jobData.expiresAt ? new Date(jobData.expiresAt).toISOString() : null,
       client_id: jobData.clientId || null,
-      // If your schema includes these, uncomment:
-      // external_spoc_id: jobData.externalSpocId || null,
-      // primary_internal_spoc_id: jobData.primaryInternalSpocId || null,
-      // secondary_internal_spoc_id: jobData.secondaryInternalSpocId || null,
+      external_spoc_id: jobData.externalSpocId || null,
+      primary_internal_spoc_id: jobData.primaryInternalSpocId || null,
+      secondary_internal_spoc_id: jobData.secondaryInternalSpocId || null,
+      hiring_manager_id: jobData.hiringManagerId || null,
+      min_experience_years: typeof jobData.minExperienceYears === 'number' ? jobData.minExperienceYears : null,
+      education_level: jobData.educationLevel || null,
     };
 
     const { data, error } = await supabase
@@ -301,6 +306,89 @@ export const updateJob = async (jobId: string, jobData: any) => {
     return data;
   } catch (error) {
     console.error('Error updating job:', error);
+    throw error;
+  }
+};
+
+// ---------------------------------------------
+// Job Application Questions
+// ---------------------------------------------
+
+export interface JobApplicationQuestion {
+  id?: string;
+  job_id: string;
+  company_id?: string;
+  question: string;
+  question_type: 'text' | 'textarea' | 'select' | 'radio' | 'checkbox' | 'file';
+  is_required: boolean;
+  options?: string[] | null;
+  order_index?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export const getJobApplicationQuestions = async (jobId: string): Promise<JobApplicationQuestion[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('job_application_questions')
+      .select('*')
+      .eq('job_id', jobId)
+      .order('order_index', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching job application questions:', error);
+    throw error;
+  }
+};
+
+type SimpleQuestion = { question: string; type: string; required: boolean; options?: string[] };
+
+export const saveJobApplicationQuestions = async (jobId: string, questions: SimpleQuestion[]) => {
+  try {
+    // First, attempt to use the RPC for atomic replace
+    const payload = (questions || []).map((q, idx) => ({
+      question: (q.question || '').trim(),
+      type: (q.type || 'text'),
+      required: !!q.required,
+      options: q.options && q.options.length ? q.options : undefined,
+      order_index: idx
+    }));
+
+    const { error } = await supabase.rpc('replace_job_questions', {
+      p_job_id: jobId,
+      p_questions: payload
+    });
+
+    if (error) {
+      console.warn('RPC replace_job_questions failed, attempting fallback. Error:', error);
+
+      // Fallback: delete existing then insert new
+      const { error: delErr } = await supabase
+        .from('job_application_questions')
+        .delete()
+        .eq('job_id', jobId);
+      if (delErr) throw delErr;
+
+      if (payload.length > 0) {
+        const { error: insErr } = await supabase
+          .from('job_application_questions')
+          .insert(payload.map((q) => ({
+            job_id: jobId,
+            question: q.question,
+            question_type: q.type,
+            is_required: q.required,
+            options: q.options ?? null,
+            order_index: q.order_index
+          })));
+        if (insErr) throw insErr;
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error saving job application questions:', error);
     throw error;
   }
 };

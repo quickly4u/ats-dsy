@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   X, 
   Save, 
   FileText, 
   Upload,
-  Plus,
-  Trash2
+  Plus
 } from 'lucide-react';
 import type { Application } from '../../types';
+import { supabase } from '../../lib/supabase';
 import { useJobs, useCandidates, useStages } from '../../hooks/useRecruitmentData';
+import { getJobApplicationQuestions } from '../../lib/jobSkillsApi';
 
 type FormData = {
   jobId: string;
@@ -20,7 +21,17 @@ type FormData = {
   rating: string;
   notes: string;
   tags: string[];
-  customResponses: { question: string; answer: string }[];
+  customResponses: {
+    questionId: string;
+    question: string;
+    type: 'text' | 'textarea' | 'select' | 'radio' | 'checkbox' | 'file';
+    options?: string[];
+    required?: boolean;
+    answer: string | string[];
+    file?: File | null;
+    fileUrl?: string | null; // for reusing candidate primary resume
+    usePrimary?: boolean; // toggle state
+  }[];
 };
 
 interface ApplicationFormProps {
@@ -46,10 +57,64 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
     rating: application?.rating !== undefined && application?.rating !== null ? String(application.rating) : '',
     notes: application?.notes || '',
     tags: application?.tags || [],
-    customResponses: [] as { question: string; answer: string }[]
+    customResponses: [] as FormData['customResponses']
   });
 
   const [currentTag, setCurrentTag] = useState('');
+  const [filePreviews, setFilePreviews] = useState<Record<number, string>>({});
+  const [primaryResume, setPrimaryResume] = useState<{ url: string; name: string; size?: number; type?: string } | null>(null);
+  const [responseErrors, setResponseErrors] = useState<Record<number, string | null>>({});
+
+  // When job changes, load custom application questions for that job and prefill response slots
+  useEffect(() => {
+    const loadQuestions = async () => {
+      try {
+        if (!formData.jobId) return;
+        const questions = await getJobApplicationQuestions(formData.jobId);
+        setFormData(prev => ({
+          ...prev,
+          customResponses: (questions || []).map((q: any) => ({
+            questionId: q.id,
+            question: q.question,
+            type: q.question_type,
+            options: q.options || [],
+            required: !!q.is_required,
+            answer: q.question_type === 'checkbox' ? [] : '',
+            file: null,
+            fileUrl: null,
+            usePrimary: false
+          }))
+        }));
+      } catch (e) {
+        console.error('Failed to load job application questions:', e);
+      }
+    };
+    loadQuestions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.jobId]);
+
+  // Load candidate's primary resume when candidate changes
+  useEffect(() => {
+    const loadPrimaryResume = async () => {
+      try {
+        setPrimaryResume(null);
+        if (!formData.candidateId) return;
+        const { data, error } = await supabase
+          .from('candidate_files')
+          .select('file_url, file_name, file_size, file_type, is_primary, file_category')
+          .eq('candidate_id', formData.candidateId)
+          .eq('is_primary', true)
+          .maybeSingle();
+        if (error) throw error;
+        if (data?.file_url) {
+          setPrimaryResume({ url: data.file_url, name: data.file_name, size: data.file_size, type: data.file_type });
+        }
+      } catch (e) {
+        console.warn('Failed to load primary resume:', e);
+      }
+    };
+    loadPrimaryResume();
+  }, [formData.candidateId]);
 
   // Fetch company-specific jobs and candidates
   const { jobs, isLoading: jobsLoading, error: jobsError } = useJobs();
@@ -58,6 +123,33 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Validate required answers before submit
+    const errs: Record<number, string | null> = {};
+    formData.customResponses.forEach((_, i) => {
+      // Run validation using latest state
+      const r = formData.customResponses[i];
+      if (r?.required) {
+        let ok = true;
+        switch (r.type) {
+          case 'text':
+          case 'textarea':
+            ok = typeof r.answer === 'string' && r.answer.trim().length > 0; break;
+          case 'select':
+          case 'radio':
+            ok = typeof r.answer === 'string' && r.answer !== ''; break;
+          case 'checkbox':
+            ok = Array.isArray(r.answer) && r.answer.length > 0; break;
+          case 'file':
+            ok = !!r.file; break;
+          default:
+            ok = true;
+        }
+        if (!ok) errs[i] = 'This question is required.'; else errs[i] = null;
+      }
+    });
+    setResponseErrors(errs);
+    const hasError = Object.values(errs).some(v => v);
+    if (hasError) return;
     onSave({
       ...formData,
       score: formData.score ? parseFloat(formData.score) : undefined,
@@ -83,28 +175,89 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
     }));
   };
 
-  const addCustomResponse = () => {
+  // Manual custom response add/edit removed; questions are driven by Job settings
+
+  const setAnswer = (index: number, value: any) => {
     setFormData(prev => ({
       ...prev,
-      customResponses: [...prev.customResponses, { question: '', answer: '' }]
+      customResponses: prev.customResponses.map((r, i) => i === index ? { ...r, answer: value } : r)
     }));
+    validateResponse(index);
   };
 
-  const updateCustomResponse = (index: number, field: string, value: string) => {
+  const toggleCheckboxAnswer = (index: number, option: string) => {
     setFormData(prev => ({
       ...prev,
-      customResponses: prev.customResponses.map((response, i) => 
-        i === index ? { ...response, [field]: value } : response
-      )
+      customResponses: prev.customResponses.map((r, i) => {
+        if (i !== index) return r;
+        const arr = Array.isArray(r.answer) ? r.answer.slice() : [];
+        const pos = arr.indexOf(option);
+        if (pos >= 0) arr.splice(pos, 1); else arr.push(option);
+        return { ...r, answer: arr };
+      })
     }));
+    validateResponse(index);
   };
 
-  const removeCustomResponse = (index: number) => {
+  const setFileAnswer = (index: number, file: File | null) => {
     setFormData(prev => ({
       ...prev,
-      customResponses: prev.customResponses.filter((_, i) => i !== index)
+      customResponses: prev.customResponses.map((r, i) => i === index ? { ...r, file, fileUrl: file ? null : r.fileUrl, usePrimary: file ? false : r.usePrimary } : r)
     }));
+    setFilePreviews(prev => {
+      // Revoke existing
+      if (prev[index]) {
+        try { URL.revokeObjectURL(prev[index]); } catch {}
+      }
+      if (file) {
+        const url = URL.createObjectURL(file);
+        return { ...prev, [index]: url };
+      } else {
+        const copy = { ...prev };
+        delete copy[index];
+        return copy;
+      }
+    });
+    validateResponse(index);
   };
+
+  const validateResponse = (index: number) => {
+    const r = formData.customResponses[index];
+    if (!r) return;
+    if (!r.required) {
+      setResponseErrors(prev => ({ ...prev, [index]: null }));
+      return;
+    }
+    let ok = true;
+    switch (r.type) {
+      case 'text':
+      case 'textarea':
+        ok = typeof r.answer === 'string' && r.answer.trim().length > 0;
+        break;
+      case 'select':
+      case 'radio':
+        ok = typeof r.answer === 'string' && r.answer !== '';
+        break;
+      case 'checkbox':
+        ok = Array.isArray(r.answer) && r.answer.length > 0;
+        break;
+      case 'file':
+        ok = !!r.file || !!r.fileUrl;
+        break;
+      default:
+        ok = true;
+    }
+    setResponseErrors(prev => ({ ...prev, [index]: ok ? null : 'This question is required.' }));
+  };
+
+  // Cleanup object URLs on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(filePreviews).forEach(url => {
+        try { URL.revokeObjectURL(url); } catch {}
+      });
+    };
+  }, [filePreviews]);
 
   if (!isOpen) return null;
 
@@ -310,56 +463,167 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-medium text-gray-900">Custom Application Responses</h3>
-                  <button
-                    type="button"
-                    onClick={addCustomResponse}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
-                  >
-                    <Plus size={16} />
-                    <span>Add Response</span>
-                  </button>
                 </div>
 
                 <div className="space-y-4">
                   {formData.customResponses.map((response, index) => (
                     <div key={index} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-medium text-gray-900">Response {index + 1}</h4>
-                        <button
-                          type="button"
-                          onClick={() => removeCustomResponse(index)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <h4 className="font-medium text-gray-900">{response.question || `Question ${index + 1}`}</h4>
                       </div>
 
                       <div className="space-y-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Question
-                          </label>
+                        {/* Render answer control by type */}
+                        {response.type === 'text' && (
                           <input
                             type="text"
-                            value={response.question}
-                            onChange={(e) => updateCustomResponse(index, 'question', e.target.value)}
+                            value={(response.answer as string) || ''}
+                            onChange={(e) => setAnswer(index, e.target.value)}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="Enter the question"
+                            placeholder="Your answer"
                           />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Answer
-                          </label>
+                        )}
+                        {responseErrors[index] && response.type === 'text' && (
+                          <p className="text-sm text-red-600">{responseErrors[index]}</p>
+                        )}
+                        {response.type === 'textarea' && (
                           <textarea
-                            rows={3}
-                            value={response.answer}
-                            onChange={(e) => updateCustomResponse(index, 'answer', e.target.value)}
+                            rows={4}
+                            value={(response.answer as string) || ''}
+                            onChange={(e) => setAnswer(index, e.target.value)}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="Candidate's response"
+                            placeholder="Your detailed answer"
                           />
-                        </div>
+                        )}
+                        {responseErrors[index] && response.type === 'textarea' && (
+                          <p className="text-sm text-red-600">{responseErrors[index]}</p>
+                        )}
+                        {(response.type === 'select') && (
+                          <select
+                            value={(response.answer as string) || ''}
+                            onChange={(e) => setAnswer(index, e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="">Select an option</option>
+                            {(response.options || []).map((opt, i) => (
+                              <option key={i} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                        )}
+                        {responseErrors[index] && response.type === 'select' && (
+                          <p className="text-sm text-red-600">{responseErrors[index]}</p>
+                        )}
+                        {response.type === 'radio' && (
+                          <div className="space-y-2">
+                            {(response.options || []).map((opt, i) => (
+                              <label key={i} className="flex items-center gap-2">
+                                <input
+                                  type="radio"
+                                  name={`q_${index}`}
+                                  checked={response.answer === opt}
+                                  onChange={() => setAnswer(index, opt)}
+                                  className="rounded border-gray-300"
+                                />
+                                <span>{opt}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                        {responseErrors[index] && response.type === 'radio' && (
+                          <p className="text-sm text-red-600">{responseErrors[index]}</p>
+                        )}
+                        {response.type === 'checkbox' && (
+                          <div className="space-y-2">
+                            {(response.options || []).map((opt, i) => {
+                              const selected = Array.isArray(response.answer) && response.answer.includes(opt);
+                              return (
+                                <label key={i} className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={selected}
+                                    onChange={() => toggleCheckboxAnswer(index, opt)}
+                                    className="rounded border-gray-300"
+                                  />
+                                  <span>{opt}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {responseErrors[index] && response.type === 'checkbox' && (
+                          <p className="text-sm text-red-600">{responseErrors[index]}</p>
+                        )}
+                        {response.type === 'file' && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-3">
+                              <label className="flex items-center gap-2 text-sm">
+                                <input
+                                  type="checkbox"
+                                  disabled={!primaryResume}
+                                  checked={!!response.usePrimary}
+                                  onChange={(e) => {
+                                    const use = e.target.checked;
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      customResponses: prev.customResponses.map((r, i) => i === index ? {
+                                        ...r,
+                                        usePrimary: use,
+                                        file: use ? null : r.file,
+                                        fileUrl: use && primaryResume ? primaryResume.url : (use ? null : r.fileUrl)
+                                      } : r)
+                                    }));
+                                    // Clear preview if toggled to primary
+                                    if (e.target.checked) {
+                                      setFileAnswer(index, null);
+                                    }
+                                  }}
+                                  className="rounded border-gray-300"
+                                />
+                                <span>Use candidate's primary resume</span>
+                              </label>
+                              {!primaryResume && (
+                                <span className="text-xs text-gray-500">No primary resume set for selected candidate</span>
+                              )}
+                              {primaryResume && response.usePrimary && (
+                                <a href={primaryResume.url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">
+                                  Preview primary resume
+                                </a>
+                              )}
+                            </div>
+
+                            {!response.usePrimary && (
+                              <input
+                                type="file"
+                                onChange={(e) => setFileAnswer(index, e.target.files && e.target.files[0] ? e.target.files[0] : null)}
+                                className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                              />
+                            )}
+                            {response.file && (
+                              <div className="border rounded p-3 bg-gray-50">
+                                <div className="flex items-center justify-between">
+                                  <div className="text-sm text-gray-700">
+                                    Selected: <strong>{response.file.name}</strong> ({Math.round(response.file.size / 1024)} KB)
+                                  </div>
+                                  <div className="space-x-3">
+                                    {filePreviews[index] && (
+                                      <a href={filePreviews[index]} download={response.file.name} className="text-blue-600 hover:underline">Download</a>
+                                    )}
+                                    <button type="button" onClick={() => setFileAnswer(index, null)} className="text-red-600 hover:underline">Remove</button>
+                                  </div>
+                                </div>
+                                {filePreviews[index] && response.file.type.startsWith('image/') && (
+                                  <img src={filePreviews[index]} alt="Preview" className="mt-3 max-h-48 rounded" />
+                                )}
+                                {filePreviews[index] && response.file.type === 'application/pdf' && (
+                                  <iframe src={filePreviews[index]} className="mt-3 w-full h-64" />
+                                )}
+                              </div>
+                            )}
+                            {responseErrors[index] && (
+                              <p className="text-sm text-red-600">{responseErrors[index]}</p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
