@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Briefcase, 
   Plus, 
@@ -13,6 +14,7 @@ import { createJob, updateJob } from '../../lib/jobSkillsApi';
 import JobDetailsModal from './JobDetailsModal';
 
 const JobsList: React.FC = () => {
+  const navigate = useNavigate();
   const [filters, setFilters] = useState<FilterOptions>({});
   const [showFilters, setShowFilters] = useState(false);
   const [showJobForm, setShowJobForm] = useState(false);
@@ -115,7 +117,7 @@ const JobsList: React.FC = () => {
               key={job.id}
               job={job}
               onEdit={() => { setSelectedJob(job); setShowJobForm(true); }}
-              onView={() => { setSelectedJob(job); setShowJobDetails(true); }}
+              onView={() => navigate(`/jobs/${job.id}`)}
             />
           ))
         )}

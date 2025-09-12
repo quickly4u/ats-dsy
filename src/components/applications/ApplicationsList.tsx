@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Search, 
   Filter, 
@@ -15,6 +16,7 @@ import ApplicationPipeline from './ApplicationPipeline';
 import ApplicationForm from '../forms/ApplicationForm';
 
 const ApplicationsList: React.FC = () => {
+  const navigate = useNavigate();
   const [filters, setFilters] = useState<FilterOptions>({});
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'pipeline'>('pipeline');
@@ -435,7 +437,7 @@ const ApplicationsList: React.FC = () => {
                 application={application}
                 isSelected={selectedApplications.has(application.id)}
                 onSelect={(selected) => handleApplicationSelect(application.id, selected)}
-                onViewDetails={(id) => { setDetailsAppId(id); setShowDetails(true); }}
+                onViewDetails={(id) => navigate(`/applications/${id}`)}
               />
             ))
           )}

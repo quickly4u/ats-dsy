@@ -13,6 +13,7 @@ import JobsList from './components/jobs/JobsList';
 import CandidatesList from './components/candidates/CandidatesList';
 import CandidateProfilePage from './components/candidates/CandidateProfilePage';
 import ApplicationsList from './components/applications/ApplicationsList';
+import ApplicationProfilePage from './components/applications/ApplicationProfilePage';
 import InterviewsList from './components/interviews/InterviewsList';
 import ReportsList from './components/reports/ReportsList';
 import TeamList from './components/team/TeamList';
@@ -20,6 +21,7 @@ import CompanySettings from './components/settings/CompanySettings';
 import SystemSettings from './components/settings/SystemSettings';
 import ClientsList from './components/clients/ClientsList';
 import SPOCManagement from './components/clients/SPOCManagement';
+import JobProfilePage from './components/jobs/JobProfilePage';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import ToastContainer from './components/common/ToastContainer';
 
@@ -141,9 +143,11 @@ const AppContent: React.FC = () => {
               <Route path="/clients" element={<ClientsList />} />
               <Route path="/spocs" element={<SPOCManagement />} />
               <Route path="/jobs" element={<JobsList />} />
+              <Route path="/jobs/:id" element={<JobProfilePage />} />
               <Route path="/candidates" element={<CandidatesList />} />
               <Route path="/candidates/:id" element={<CandidateProfilePage />} />
               <Route path="/applications" element={<ApplicationsList />} />
+              <Route path="/applications/:id" element={<ApplicationProfilePage />} />
               <Route path="/interviews" element={<InterviewsList />} />
               <Route path="/reports" element={<ReportsList />} />
               <Route path="/team" element={<TeamList />} />
