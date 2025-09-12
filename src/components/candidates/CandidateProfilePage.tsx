@@ -19,11 +19,14 @@ import {
   ArrowLeft,
   Plus,
   X,
-  Save
+  Save,
+  History
 } from 'lucide-react';
 import type { Candidate, Experience } from '../../types';
 import { supabase, getCurrentUserCompanyId } from '../../lib/supabase';
 import CandidateFileManager from './CandidateFileManager';
+import { AuditInfo } from '../common/AuditInfo';
+import { TransactionHistory } from '../common/TransactionHistory';
 
 const CandidateProfilePage: React.FC = () => {
   const { id } = useParams();
@@ -343,7 +346,8 @@ const CandidateProfilePage: React.FC = () => {
     { id: 'experience', label: 'Experience', icon: Briefcase },
     { id: 'education', label: 'Education', icon: GraduationCap },
     { id: 'skills', label: 'Skills', icon: Star },
-    { id: 'applications', label: 'Applications', icon: FileText }
+    { id: 'applications', label: 'Applications', icon: FileText },
+    { id: 'history', label: 'History', icon: History }
   ];
 
   if (loading) {
@@ -390,6 +394,11 @@ const CandidateProfilePage: React.FC = () => {
               <p className="text-sm text-gray-600">
                 {candidate.currentTitle || 'Candidate'}{candidate.currentCompany ? ` • ${candidate.currentCompany}` : ''}
               </p>
+              {candidate.id && (
+                <div className="mt-2">
+                  <AuditInfo tableName="candidates" recordId={candidate.id} className="text-xs" />
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1080,6 +1089,12 @@ const CandidateProfilePage: React.FC = () => {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {activeTab === 'history' && candidate && (
+            <div className="space-y-6">
+              <TransactionHistory tableName="candidates" recordId={candidate.id} />
             </div>
           )}
 

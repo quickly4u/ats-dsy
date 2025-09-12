@@ -17,7 +17,13 @@ interface CandidateFormProps {
   candidate?: Candidate;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (candidateData: Partial<Candidate>, extras?: { resumeFile?: File }) => void;
+  onSave: (
+    candidateData: Partial<Candidate>,
+    extras?: {
+      resumeFile?: File;
+      education?: { institution: string; degree: string; field: string; startDate: string; endDate: string }[];
+    }
+  ) => void;
 }
 
 const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClose, onSave }) => {
@@ -58,6 +64,13 @@ const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClos
       endDate: exp.endDate,
       description: exp.description
     }));
+    const education = formData.education.map(edu => ({
+      institution: edu.institution,
+      degree: edu.degree,
+      field: edu.field,
+      startDate: edu.startDate,
+      endDate: edu.endDate
+    }));
     const payload: Partial<Candidate> = {
       firstName: formData.firstName,
       lastName: formData.lastName,
@@ -73,7 +86,13 @@ const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClos
       skills: formData.skills,
       experiences
     };
-    onSave(payload, pendingResumeFile ? { resumeFile: pendingResumeFile } : undefined);
+    onSave(
+      payload,
+      {
+        ...(pendingResumeFile ? { resumeFile: pendingResumeFile } : {}),
+        ...(education.length ? { education } : {})
+      }
+    );
     onClose();
   };
 

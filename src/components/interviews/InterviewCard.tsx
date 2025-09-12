@@ -11,6 +11,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import type { Interview } from '../../types';
+import { AuditInfo } from '../common/AuditInfo';
 
 interface InterviewCardProps {
   interview: Interview;
@@ -220,6 +221,11 @@ const InterviewCard: React.FC<InterviewCardProps> = ({ interview, isToday = fals
             View Details
           </button>
         </div>
+      </div>
+      
+      {/* Audit Information */}
+      <div className="mt-4 pt-4 border-t border-gray-100">
+        <AuditInfo tableName="interviews" recordId={interview.id} className="text-xs" />
       </div>
     </div>
   );

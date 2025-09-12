@@ -43,7 +43,10 @@ const CandidatesList: React.FC = () => {
     setFilters(prev => ({ ...prev, search }));
   };
 
-  const handleSaveCandidate = async (candidateData: Partial<Candidate>, extras?: { resumeFile?: File }) => {
+  const handleSaveCandidate = async (
+    candidateData: Partial<Candidate>,
+    extras?: { resumeFile?: File; education?: { institution: string; degree: string; field: string; startDate: string; endDate: string }[] }
+  ) => {
     try {
       const companyId = await getCurrentUserCompanyId();
       if (!companyId) throw new Error('User company not found');
@@ -102,6 +105,21 @@ const CandidatesList: React.FC = () => {
         }));
         const { error: expError } = await supabase.from('candidate_experiences').insert(expRows);
         if (expError) throw expError;
+      }
+
+      // Insert education (from modal extras)
+      if (extras?.education && extras.education.length > 0) {
+        const eduRows = extras.education.map((edu) => ({
+          candidate_id: candidateId,
+          company_id: companyId,
+          institution: edu.institution,
+          degree: edu.degree,
+          field_of_study: edu.field || null,
+          start_date: edu.startDate || null,
+          end_date: edu.endDate || null
+        }));
+        const { error: eduError } = await supabase.from('candidate_education').insert(eduRows);
+        if (eduError) throw eduError;
       }
 
       // If a resume file was attached before save, upload it now and create DB record
