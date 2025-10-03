@@ -17,6 +17,7 @@ import SPOCForm from '../forms/SPOCForm';
 import { useClients } from '../../hooks/useRecruitmentData';
 import { useContacts } from '../../hooks/useContacts';
 import { supabase, getCurrentUserCompanyId } from '../../lib/supabase';
+import { AuditInfo } from '../common/AuditInfo';
 
 interface SPOCManagementProps {
   initialTab?: 'external' | 'internal';
@@ -221,6 +222,10 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
                   </div>
                 )}
               </div>
+              
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <AuditInfo tableName="external_spocs" recordId={contact.id} className="text-xs" />
+              </div>
             </div>
           </div>
         </div>
@@ -294,6 +299,10 @@ const SPOCManagement: React.FC<SPOCManagementProps> = ({ initialTab = 'external'
                     <span className="text-sm text-gray-500">No clients assigned</span>
                   )}
                 </div>
+              </div>
+              
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <AuditInfo tableName="internal_spocs" recordId={contact.id} className="text-xs" />
               </div>
               
               <div className="mt-3 text-xs text-gray-500">

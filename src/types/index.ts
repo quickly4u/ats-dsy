@@ -92,6 +92,8 @@ export interface Candidate {
   lastName: string;
   phone?: string;
   location?: string;
+  city?: string;
+  state?: string;
   linkedinUrl?: string;
   portfolioUrl?: string;
   currentCompany?: string;
@@ -204,6 +206,18 @@ export interface RecruitmentMetrics {
   costPerHire: number;
   applicationConversionRate: number;
   sourceEffectiveness: Record<string, number>;
+  // Pipeline funnel data
+  pipelineData: {
+    labels: string[];
+    counts: number[];
+  };
+  // Source volume data
+  sourceVolume: Record<string, number>;
+  // Time to hire trend (last 6 months)
+  timeToHireTrend: {
+    labels: string[];
+    values: number[];
+  };
 }
 
 export interface Notification {

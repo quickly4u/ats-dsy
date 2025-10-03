@@ -60,6 +60,8 @@ const CandidatesList: React.FC = () => {
         last_name: rest.lastName,
         phone: rest.phone ?? null,
         location: rest.location ?? null,
+        city: (rest as any).city ?? null,
+        state: (rest as any).state ?? null,
         linkedin_url: rest.linkedinUrl ?? null,
         portfolio_url: rest.portfolioUrl ?? null,
         current_company: rest.currentCompany ?? null,
@@ -273,7 +275,11 @@ const CandidatesList: React.FC = () => {
                 )}
                 <div className="flex items-center text-sm text-gray-600">
                   <MapPin size={16} className="mr-2 text-gray-400" />
-                  <span>{candidate.location}</span>
+                  <span>
+                    {candidate.city && candidate.state 
+                      ? `${candidate.city}, ${candidate.state}`
+                      : candidate.city || candidate.state || candidate.location || 'N/A'}
+                  </span>
                 </div>
               </div>
               

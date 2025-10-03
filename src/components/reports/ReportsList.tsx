@@ -32,28 +32,30 @@ const ReportsList: React.FC = () => {
     { id: 'diversity', name: 'Diversity & Inclusion', icon: Users },
   ];
 
-  // Mock data for charts
-  const pipelineData = {
-    labels: ['Applied', 'Screening', 'Interview', 'Assessment', 'Offer', 'Hired'],
+  // Pipeline data from real metrics
+  const pipelineData = metrics ? {
+    labels: metrics.pipelineData.labels,
     datasets: [{
       label: 'Candidates',
-      data: [324, 156, 89, 67, 23, 12],
+      data: metrics.pipelineData.counts,
       backgroundColor: 'rgba(59, 130, 246, 0.8)',
       borderColor: 'rgb(59, 130, 246)',
       borderWidth: 1,
     }]
-  };
+  } : null;
 
-  const timeToHireData = {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+  // Time to hire data from real metrics
+  const timeToHireData = metrics ? {
+    labels: metrics.timeToHireTrend.labels,
     datasets: [{
       label: 'Average Days',
-      data: [22, 19, 25, 18, 21, 16],
+      data: metrics.timeToHireTrend.values,
       backgroundColor: 'rgba(16, 185, 129, 0.1)',
       borderColor: 'rgb(16, 185, 129)',
       borderWidth: 2,
+      fill: true,
     }]
-  };
+  } : null;
 
   const sourceEffectivenessData = metrics ? {
     labels: Object.keys(metrics.sourceEffectiveness),
@@ -66,6 +68,7 @@ const ReportsList: React.FC = () => {
     }]
   } : null;
 
+  // Cost analysis data - placeholder until cost tracking is implemented
   const costAnalysisData = {
     labels: ['Recruiting Tools', 'Job Boards', 'Referral Bonuses', 'Agency Fees', 'Internal Costs'],
     datasets: [{
@@ -119,12 +122,24 @@ const ReportsList: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Pipeline Funnel</h3>
-          <Chart type="bar" data={pipelineData} height={300} />
+          {pipelineData ? (
+            <Chart type="bar" data={pipelineData} height={300} />
+          ) : (
+            <div className="flex items-center justify-center h-[300px] text-gray-400">
+              No pipeline data available
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Time to Hire Trend</h3>
-          <Chart type="line" data={timeToHireData} height={300} />
+          {timeToHireData ? (
+            <Chart type="line" data={timeToHireData} height={300} />
+          ) : (
+            <div className="flex items-center justify-center h-[300px] text-gray-400">
+              No time to hire data available
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -165,33 +180,28 @@ const ReportsList: React.FC = () => {
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h4 className="font-semibold text-gray-900 mb-4">Source Volume</h4>
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">LinkedIn</span>
-              <div className="flex items-center space-x-2">
-                <div className="w-24 bg-gray-200 rounded-full h-2">
-                  <div className="bg-blue-600 h-2 rounded-full" style={{ width: '75%' }}></div>
-                </div>
-                <span className="text-sm font-medium text-gray-900">156</span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Company Website</span>
-              <div className="flex items-center space-x-2">
-                <div className="w-24 bg-gray-200 rounded-full h-2">
-                  <div className="bg-green-600 h-2 rounded-full" style={{ width: '60%' }}></div>
-                </div>
-                <span className="text-sm font-medium text-gray-900">89</span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Referrals</span>
-              <div className="flex items-center space-x-2">
-                <div className="w-24 bg-gray-200 rounded-full h-2">
-                  <div className="bg-purple-600 h-2 rounded-full" style={{ width: '45%' }}></div>
-                </div>
-                <span className="text-sm font-medium text-gray-900">67</span>
-              </div>
-            </div>
+            {metrics && Object.entries(metrics.sourceVolume)
+              .sort(([,a], [,b]) => b - a)
+              .slice(0, 5)
+              .map(([source, count], index) => {
+                const maxCount = Math.max(...Object.values(metrics.sourceVolume));
+                const percentage = (count / maxCount) * 100;
+                const colors = ['bg-blue-600', 'bg-green-600', 'bg-purple-600', 'bg-yellow-600', 'bg-pink-600'];
+                return (
+                  <div key={source} className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">{source}</span>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-24 bg-gray-200 rounded-full h-2">
+                        <div className={`${colors[index % colors.length]} h-2 rounded-full`} style={{ width: `${percentage}%` }}></div>
+                      </div>
+                      <span className="text-sm font-medium text-gray-900">{count}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            {(!metrics || Object.keys(metrics.sourceVolume).length === 0) && (
+              <div className="text-center text-gray-400 py-4">No source data available</div>
+            )}
           </div>
         </div>
       </div>
@@ -208,7 +218,7 @@ const ReportsList: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <MetricCard
           title="Total Recruitment Cost"
-          value="$23,700"
+          value={metrics ? `$${(metrics.costPerHire * metrics.hires).toLocaleString()}` : '$0'}
           change={-12}
           changeType="positive"
           icon={DollarSign}
@@ -216,15 +226,15 @@ const ReportsList: React.FC = () => {
         />
         <MetricCard
           title="Cost per Application"
-          value="$73"
+          value={metrics && metrics.totalApplications > 0 ? `$${Math.round((metrics.costPerHire * metrics.hires) / metrics.totalApplications)}` : '$0'}
           change={-8}
           changeType="positive"
           icon={Target}
           color="blue"
         />
         <MetricCard
-          title="ROI on Recruitment"
-          value="340%"
+          title="Hires This Period"
+          value={metrics?.hires.toString() || '0'}
           change={15}
           changeType="positive"
           icon={TrendingUp}
@@ -246,14 +256,26 @@ const ReportsList: React.FC = () => {
         return (
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Pipeline Analysis</h3>
-            <Chart type="bar" data={pipelineData} height={400} />
+            {pipelineData ? (
+              <Chart type="bar" data={pipelineData} height={400} />
+            ) : (
+              <div className="flex items-center justify-center h-[400px] text-gray-400">
+                No pipeline data available
+              </div>
+            )}
           </div>
         );
       case 'time':
         return (
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Time to Hire Analysis</h3>
-            <Chart type="line" data={timeToHireData} height={400} />
+            {timeToHireData ? (
+              <Chart type="line" data={timeToHireData} height={400} />
+            ) : (
+              <div className="flex items-center justify-center h-[400px] text-gray-400">
+                No time to hire data available
+              </div>
+            )}
           </div>
         );
       case 'diversity':

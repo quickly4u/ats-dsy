@@ -7,7 +7,8 @@ import {
   GraduationCap,
   Plus,
   Upload,
-  Star
+  Star,
+  Sparkles
 } from 'lucide-react';
 import type { Candidate } from '../../types';
 import { useFileUpload } from '../../hooks/useFileUpload';
@@ -32,12 +33,15 @@ const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClos
   const { uploadFile, uploading } = useFileUpload({ candidateId: candidate?.id || '', companyId: companyId || '' });
   const resumeInputRef = useRef<HTMLInputElement>(null);
   const [pendingResumeFile, setPendingResumeFile] = useState<File | null>(null);
+  const [isParsing, setIsParsing] = useState(false);
   const [formData, setFormData] = useState({
     firstName: candidate?.firstName || '',
     lastName: candidate?.lastName || '',
     email: candidate?.email || '',
     phone: candidate?.phone || '',
     location: candidate?.location || '',
+    city: (candidate as any)?.city || '',
+    state: (candidate as any)?.state || '',
     linkedinUrl: candidate?.linkedinUrl || '',
     currentCompany: candidate?.currentCompany || '',
     currentTitle: candidate?.currentTitle || '',
@@ -77,6 +81,8 @@ const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClos
       email: formData.email,
       phone: formData.phone || undefined,
       location: formData.location || undefined,
+      city: formData.city || undefined,
+      state: formData.state || undefined,
       linkedinUrl: formData.linkedinUrl || undefined,
       currentCompany: formData.currentCompany || undefined,
       currentTitle: formData.currentTitle || undefined,
@@ -85,7 +91,7 @@ const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClos
       source: formData.source,
       skills: formData.skills,
       experiences
-    };
+    } as any;
     onSave(
       payload,
       {
@@ -172,6 +178,169 @@ const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClos
       ...prev,
       education: prev.education.filter((_, i) => i !== index)
     }));
+  };
+
+  const handleParseResume = async () => {
+    console.log('🚀 handleParseResume called');
+    
+    if (!pendingResumeFile) {
+      console.log('❌ No resume file attached');
+      alert('Please upload a resume first');
+      return;
+    }
+
+    console.log('📄 Resume file:', pendingResumeFile.name, pendingResumeFile.type, pendingResumeFile.size);
+    setIsParsing(true);
+    
+    try {
+      const formDataPayload = new FormData();
+      formDataPayload.append('file', pendingResumeFile);
+      
+      console.log('📤 Sending request to webhook...');
+      console.log('🔗 URL: https://n8n.srv1025472.hstgr.cloud/webhook/14605853-ee86-4549-9634-9e8ed45ecac3');
+
+      const response = await fetch('https://n8n.srv1025472.hstgr.cloud/webhook/14605853-ee86-4549-9634-9e8ed45ecac3', {
+        method: 'POST',
+        body: formDataPayload,
+      });
+
+      console.log('📥 Response received:', response.status, response.statusText);
+
+      if (!response.ok) {
+        console.error('❌ Response not OK:', response.status, response.statusText);
+        throw new Error(`Failed to parse resume: ${response.status} ${response.statusText}`);
+      }
+
+      const rawData = await response.json();
+      console.log('✅ Raw data received:', rawData);
+      
+      // Extract data from array (webhook returns array with single object)
+      const data = Array.isArray(rawData) ? rawData[0] : rawData;
+      console.log('📋 Extracted data:', data);
+      
+      // Parse skills from comma-separated string to array
+      const skillsString = data['Skills of the candidate '] || data['Skills of the candidate'] || '';
+      const parsedSkills = skillsString 
+        ? skillsString.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0)
+        : [];
+      
+      // Parse education entries (Education 0, Education 1, etc.)
+      const parsedEducation: any[] = [];
+      for (let i = 0; i < 10; i++) {
+        const eduKey = `Education ${i}`;
+        const edu = data[eduKey];
+        if (edu && Object.keys(edu).length > 0) {
+          // Convert graduation year to proper date format
+          const gradYear = edu['Graduation Year'] || '';
+          let endDate = '';
+          if (gradYear) {
+            // Extract year from strings like "July 2023" or "2023"
+            const yearMatch = gradYear.match(/\d{4}/);
+            if (yearMatch) {
+              // Use July 1st as default graduation date
+              endDate = `${yearMatch[0]}-07-01`;
+            }
+          }
+          
+          parsedEducation.push({
+            institution: edu['Graduation Institution '] || edu['Graduation Institution'] || '',
+            degree: edu['Graduation Degree of the candidate'] || '',
+            field: edu['Field of Study'] || '',
+            startDate: '',
+            endDate: endDate
+          });
+        }
+      }
+      
+      // Parse work experience entries (Experience 0, Experience 1, etc.)
+      const parsedExperience: any[] = [];
+      
+      // Experience 0 has different field names
+      const exp0 = data['Experience 0 '] || data['Experience 0'];
+      if (exp0 && Object.keys(exp0).length > 0) {
+        parsedExperience.push({
+          company: exp0['Company_0'] || '',
+          title: exp0['Company_0 Job tittle'] || '',
+          location: exp0['Company_0 city'] || '',
+          startDate: exp0['Company_0 job start date'] || '',
+          endDate: exp0['Company_0 job end date'] || '',
+          description: exp0['Experience description of Company_0 '] || exp0['Experience description of Company_0'] || ''
+        });
+      }
+      
+      // Experience 1 (Second Company)
+      const exp1 = data['Experience 1'];
+      if (exp1 && Object.keys(exp1).length > 0) {
+        parsedExperience.push({
+          company: exp1['Second Company name'] || '',
+          title: exp1['Second Company Job tittle'] || '',
+          location: exp1['Second Company city'] || '',
+          startDate: exp1['Second Company job start date'] || '',
+          endDate: exp1['Second Company job end date'] || '',
+          description: exp1['Experience description of Second Company'] || ''
+        });
+      }
+      
+      // Experience 2 (Third Company)
+      const exp2 = data['Experience 2'];
+      if (exp2 && Object.keys(exp2).length > 0) {
+        parsedExperience.push({
+          company: exp2['Third Company name'] || '',
+          title: exp2['Third Company Job tittle'] || '',
+          location: exp2['Third Company city'] || '',
+          startDate: exp2['Third Company job start date'] || '',
+          endDate: exp2['Third Company job end date'] || '',
+          description: exp2['Experience description of Third Company'] || ''
+        });
+      }
+      
+      // Experience 3 (Fourth Company)
+      const exp3 = data['Experience 3'];
+      if (exp3 && Object.keys(exp3).length > 0) {
+        parsedExperience.push({
+          company: exp3['Fourth Company name'] || '',
+          title: exp3['Fourth Company Job tittle'] || '',
+          location: exp3['Fourth Company city'] || '',
+          startDate: exp3['Fourth Company job start date'] || '',
+          endDate: exp3['Fourth Company job end date'] || '',
+          description: exp3['Experience description of Fourth Company'] || ''
+        });
+      }
+      
+      console.log('🎓 Parsed education:', parsedEducation);
+      console.log('💼 Parsed experience:', parsedExperience);
+      console.log('🔧 Parsed skills:', parsedSkills);
+      
+      // Autofill form with parsed data
+      setFormData(prev => ({
+        ...prev,
+        firstName: data['First name'] || prev.firstName,
+        lastName: data['Last Name'] || prev.lastName,
+        email: data['Email Address'] || prev.email,
+        phone: data['Phone Number'] || prev.phone,
+        location: prev.location, // Keep existing location
+        city: data['City'] || prev.city,
+        state: data['State'] || prev.state,
+        linkedinUrl: data['Linkedin '] || data['Linkedin'] || prev.linkedinUrl,
+        currentCompany: data['Current Company'] || prev.currentCompany,
+        currentTitle: data['Job tittle'] || prev.currentTitle,
+        experienceYears: data['Years of Experience'] || prev.experienceYears,
+        summary: data['Summary'] || prev.summary,
+        skills: parsedSkills.length > 0 ? parsedSkills : prev.skills,
+        workExperience: parsedExperience.length > 0 ? parsedExperience : prev.workExperience,
+        education: parsedEducation.length > 0 ? parsedEducation : prev.education,
+      }));
+
+      console.log('✅ Form data updated successfully');
+      alert('Resume parsed successfully! Form has been autofilled.');
+      setActiveTab('basic'); // Switch to basic info tab to show parsed data
+    } catch (error) {
+      console.error('❌ Error parsing resume:', error);
+      alert(`Failed to parse resume: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsParsing(false);
+      console.log('🏁 Parsing complete');
+    }
   };
 
   if (!isOpen) return null;
@@ -286,14 +455,40 @@ const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClos
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Location
+                      City
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.city}
+                      onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="San Francisco"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      State
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.state}
+                      onChange={(e) => setFormData(prev => ({ ...prev, state: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="California"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Location (Optional)
                     </label>
                     <input
                       type="text"
                       value={formData.location}
                       onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="San Francisco, CA"
+                      placeholder="Full address or additional location info"
                     />
                   </div>
 
@@ -678,7 +873,7 @@ const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClos
                           e.currentTarget.value = '';
                         }}
                       />
-                      <div className="mt-4">
+                      <div className="mt-4 flex flex-col gap-2">
                         <button
                           type="button"
                           onClick={() => { resumeInputRef.current?.click(); }}
@@ -687,6 +882,18 @@ const CandidateForm: React.FC<CandidateFormProps> = ({ candidate, isOpen, onClos
                         >
                           {uploading ? 'Uploading...' : (pendingResumeFile ? 'Change Attached Resume' : 'Upload Resume')}
                         </button>
+                        
+                        {pendingResumeFile && (
+                          <button
+                            type="button"
+                            onClick={handleParseResume}
+                            disabled={isParsing || uploading}
+                            className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-60 flex items-center justify-center gap-2 font-medium"
+                          >
+                            <Sparkles size={18} />
+                            {isParsing ? 'Parsing Resume...' : 'Autofill with Parser'}
+                          </button>
+                        )}
                       </div>
                       <p className="mt-2 text-sm text-gray-500">
                         PDF, DOC, or DOCX up to 10MB
