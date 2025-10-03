@@ -10,18 +10,20 @@ import {
   ArrowLeft,
   History,
   FileText,
-  GitBranch
+  GitBranch,
+  UserPlus
 } from 'lucide-react';
 import { supabase, getCurrentUserCompanyId } from '../../lib/supabase';
 import { AuditInfo } from '../common/AuditInfo';
 import { TransactionHistory } from '../common/TransactionHistory';
+import AddApplicantsTab from './AddApplicantsTab';
 
 const JobProfilePage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [companyId, setCompanyId] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'applications' | 'history'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'applications' | 'add-applicants' | 'history'>('overview');
   const [job, setJob] = useState<any | null>(null);
   const [applications, setApplications] = useState<any[]>([]);
 
@@ -182,6 +184,7 @@ const JobProfilePage: React.FC = () => {
             {[
               { id: 'overview', label: 'Overview', icon: Briefcase },
               { id: 'applications', label: 'Applications', icon: Users },
+              { id: 'add-applicants', label: 'Add Applicants', icon: UserPlus },
               { id: 'history', label: 'History', icon: History },
             ].map((tab) => {
               const Icon = tab.icon as any;
@@ -290,6 +293,34 @@ const JobProfilePage: React.FC = () => {
                 ))
               )}
             </div>
+          )}
+
+          {activeTab === 'add-applicants' && (
+            <AddApplicantsTab 
+              job={job} 
+              onApplicationCreated={() => {
+                // Reload applications when a new one is created
+                if (id && companyId) {
+                  supabase
+                    .from('applications')
+                    .select(`
+                      id,
+                      status,
+                      applied_at,
+                      score,
+                      rating,
+                      candidate:candidates ( id, first_name, last_name, email ),
+                      stage:custom_stages ( name, stage_type )
+                    `)
+                    .eq('job_id', id)
+                    .eq('company_id', companyId)
+                    .order('applied_at', { ascending: false })
+                    .then(({ data }) => {
+                      if (data) setApplications(data as any);
+                    });
+                }
+              }}
+            />
           )}
 
           {activeTab === 'history' && job.id && (
