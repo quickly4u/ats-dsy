@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
-import type { 
-  Job, 
-  Candidate, 
-  Application, 
-  Interview, 
+import type {
+  Job,
+  Candidate,
+  Application,
+  Interview,
   RecruitmentMetrics,
   FilterOptions,
   Experience
 } from '../types';
 import { supabase, getCurrentUserCompanyId } from '../lib/supabase';
+import { getAccessibleTeamMemberIds } from '../utils/hierarchy';
 
 // Mock data generators removed - now using real Supabase data
 
@@ -41,13 +42,15 @@ export const useJobs = (filters?: FilterOptions) => {
     const fetchJobs = async () => {
       try {
         setIsLoading(true);
-        
-        // Get current user's company ID
+
+        // Get current user's company ID and accessible team members
         const companyId = await getCurrentUserCompanyId();
         if (!companyId) {
           throw new Error('User company not found');
         }
-        
+
+        const accessibleUserIds = await getAccessibleTeamMemberIds();
+
         // Fetch jobs from Supabase filtered by company_id
         const { data: jobRows, error: jobError } = await supabase
           .from('jobs')
@@ -74,7 +77,8 @@ export const useJobs = (filters?: FilterOptions) => {
             secondary_internal_spoc_id,
             hiring_manager_id,
             min_experience_years,
-            education_level
+            education_level,
+            created_by
           `)
           .eq('company_id', companyId)
           .order('created_at', { ascending: false });
@@ -100,8 +104,16 @@ export const useJobs = (filters?: FilterOptions) => {
         const usersMap = new Map((usersRes.data || []).map((u: any) => [u.id, u]));
         const contactsMap = new Map((contactsRes.data || []).map((c: any) => [c.id, c]));
 
+        // Filter by hierarchy: only show jobs created by accessible team members
+        const filteredJobRows = (jobRows || []).filter((j: any) => {
+          // If no created_by (legacy data), show it to everyone
+          if (!j.created_by) return true;
+          // Otherwise, only show if created by accessible user
+          return accessibleUserIds.includes(j.created_by);
+        });
+
         // Transform to Job type with related names populated
-        let result: Job[] = (jobRows || []).map((j: any) => ({
+        let result: Job[] = filteredJobRows.map((j: any) => ({
           id: j.id,
           clientId: j.client_id || '',
           client: {
@@ -261,13 +273,15 @@ export const useCandidates = (filters?: FilterOptions) => {
     const fetchCandidates = async () => {
       try {
         setIsLoading(true);
-        
-        // Get current user's company ID
+
+        // Get current user's company ID and accessible team members
         const companyId = await getCurrentUserCompanyId();
         if (!companyId) {
           throw new Error('User company not found');
         }
-        
+
+        const accessibleUserIds = await getAccessibleTeamMemberIds();
+
         // Fetch candidates from Supabase with basic fields only, filtered by company_id
         const { data: candidateRows, error: candidateError } = await supabase
           .from('candidates')
@@ -290,7 +304,8 @@ export const useCandidates = (filters?: FilterOptions) => {
             rating,
             is_blacklisted,
             created_at,
-            company_id
+            company_id,
+            created_by
           `)
           .eq('company_id', companyId)
           .order('created_at', { ascending: false });
@@ -299,8 +314,16 @@ export const useCandidates = (filters?: FilterOptions) => {
           throw candidateError;
         }
 
+        // Filter by hierarchy: only show candidates created by accessible team members
+        const filteredCandidateRows = (candidateRows || []).filter((c: any) => {
+          // If no created_by (legacy data), show it to everyone
+          if (!c.created_by) return true;
+          // Otherwise, only show if created by accessible user
+          return accessibleUserIds.includes(c.created_by);
+        });
+
         // Fetch skills separately to avoid complex joins
-        const candidateIds = candidateRows?.map(c => c.id) || [];
+        const candidateIds = filteredCandidateRows?.map(c => c.id) || [];
         let skillsByCandidate: Record<string, string[]> = {};
         
         if (candidateIds.length > 0) {
@@ -347,7 +370,7 @@ export const useCandidates = (filters?: FilterOptions) => {
         }
 
         // Transform to our Candidate type
-        let result: Candidate[] = (candidateRows || []).map((c: any) => ({
+        let result: Candidate[] = filteredCandidateRows.map((c: any) => ({
           id: c.id,
           email: c.email,
           firstName: c.first_name,
@@ -432,13 +455,15 @@ export const useApplications = (filters?: FilterOptions) => {
     const fetchApplications = async () => {
       try {
         setIsLoading(true);
-        
-        // Get current user's company ID
+
+        // Get current user's company ID and accessible team members
         const companyId = await getCurrentUserCompanyId();
         if (!companyId) {
           throw new Error('User company not found');
         }
-        
+
+        const accessibleUserIds = await getAccessibleTeamMemberIds();
+
         // Fetch applications with separate queries to avoid complex joins, filtered by company_id
         const { data: applicationRows, error: applicationError } = await supabase
           .from('applications')
@@ -455,7 +480,9 @@ export const useApplications = (filters?: FilterOptions) => {
             job_id,
             candidate_id,
             stage_id,
-            company_id
+            company_id,
+            assigned_to,
+            created_by
           `)
           .eq('company_id', companyId)
           .order('applied_at', { ascending: false });
@@ -464,15 +491,23 @@ export const useApplications = (filters?: FilterOptions) => {
           throw applicationError;
         }
 
-        if (!applicationRows || applicationRows.length === 0) {
+        // Filter by hierarchy: only show applications assigned to or created by accessible team members
+        const filteredApplicationRows = (applicationRows || []).filter((app: any) => {
+          // If no assigned_to and no created_by (legacy data), show it to everyone
+          if (!app.assigned_to && !app.created_by) return true;
+          // Show if assigned to accessible user OR created by accessible user
+          return accessibleUserIds.includes(app.assigned_to) || accessibleUserIds.includes(app.created_by);
+        });
+
+        if (!filteredApplicationRows || filteredApplicationRows.length === 0) {
           setApplications([]);
           return;
         }
 
         // Get unique IDs for separate queries
-        const jobIds = [...new Set(applicationRows.map(app => app.job_id).filter(Boolean))];
-        const candidateIds = [...new Set(applicationRows.map(app => app.candidate_id).filter(Boolean))];
-        const stageIds = [...new Set(applicationRows.map(app => app.stage_id).filter(Boolean))];
+        const jobIds = [...new Set(filteredApplicationRows.map(app => app.job_id).filter(Boolean))];
+        const candidateIds = [...new Set(filteredApplicationRows.map(app => app.candidate_id).filter(Boolean))];
+        const stageIds = [...new Set(filteredApplicationRows.map(app => app.stage_id).filter(Boolean))];
 
         // Fetch jobs (already filtered by company_id through applications)
         const { data: jobRows, error: jobError } = await supabase
@@ -560,7 +595,7 @@ export const useApplications = (filters?: FilterOptions) => {
         const stagesMap = new Map((stageRows || []).map(stage => [stage.id, stage]));
 
         // Transform to Application type
-        const result: Application[] = applicationRows.map((app: any) => {
+        const result: Application[] = filteredApplicationRows.map((app: any) => {
           const jobRow = jobsMap.get(app.job_id);
           const candidateRow = candidatesMap.get(app.candidate_id);
           const stageRow = stagesMap.get(app.stage_id);

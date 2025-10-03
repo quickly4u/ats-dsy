@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { 
-  X, 
-  Save, 
-  User, 
+import {
+  X,
+  Save,
+  User,
   Building2,
   Upload,
 } from 'lucide-react';
+import { getCreatableRoles, type RoleName } from '../../utils/hierarchy';
 
 interface Role {
   id: string;
@@ -35,28 +36,58 @@ const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ member, editingMember, 
     phone: currentMember?.phone || '',
     roleId: roles.find(r => r.name === currentMember?.role)?.id || roles[0]?.id || '',
     role: currentMember?.role || 'Recruiter',
-    department: currentMember?.department || 'General',
     status: currentMember?.status || 'active',
     reportsTo: currentMember?.reportsTo || '',
-    startDate: currentMember?.startDate ? 
+    startDate: currentMember?.startDate ?
       new Date(currentMember.startDate).toISOString().split('T')[0] : '',
-    // permissions removed
   });
 
   const [activeTab, setActiveTab] = useState<'basic' | 'role'>('basic');
+  const [creatableRoleNames, setCreatableRoleNames] = useState<RoleName[]>([]);
+
+  // Get creatable roles based on current user's role
+  useEffect(() => {
+    getCreatableRoles().then(setCreatableRoleNames);
+  }, []);
+
+  // Filter roles to only show what current user can create
+  const availableRoles = useMemo(() => {
+    if (creatableRoleNames.length === 0) return roles;
+    return roles.filter(role => creatableRoleNames.includes(role.name as RoleName));
+  }, [roles, creatableRoleNames]);
+
+  // Update form data when editingMember changes
+  useEffect(() => {
+    if (currentMember) {
+      setFormData({
+        firstName: currentMember.firstName || '',
+        lastName: currentMember.lastName || '',
+        email: currentMember.email || '',
+        phone: currentMember.phone || '',
+        roleId: roles.find(r => r.name === currentMember.role)?.id || roles[0]?.id || '',
+        role: currentMember.role || 'Recruiter',
+        status: currentMember.status || 'active',
+        reportsTo: currentMember.reportsTo || '',
+        startDate: currentMember.startDate ?
+          new Date(currentMember.startDate).toISOString().split('T')[0] : '',
+      });
+    } else {
+      // Reset form for new invitation
+      setFormData({
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        roleId: roles.find(r => r.name === 'Recruiter')?.id || roles[0]?.id || '',
+        role: 'Recruiter',
+        status: 'active',
+        reportsTo: '',
+        startDate: '',
+      });
+    }
+  }, [currentMember, roles]);
 
   // Removed unused defaultRoles array - using roles prop instead
-
-  const departments = [
-    'Human Resources',
-    'Engineering',
-    'Marketing',
-    'Sales',
-    'Design',
-    'Operations',
-    'Finance',
-    'Legal'
-  ];
 
   // Role hierarchy for Reports To (strict, role-dependent)
   // Recruiter < ATL < TL < Manager < Head < Owner
@@ -119,7 +150,6 @@ const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ member, editingMember, 
       phone: formData.phone,
       roleId: formData.roleId,
       role: selectedRoleName,
-      department: formData.department,
       status: formData.status,
       reportsTo: formData.reportsTo || undefined,
       startDate: formData.startDate,
@@ -131,7 +161,7 @@ const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ member, editingMember, 
 
   const tabs: ReadonlyArray<{ id: 'basic' | 'role'; label: string; icon: any }> = [
     { id: 'basic', label: 'Basic Info', icon: User },
-    { id: 'role', label: 'Role & Department', icon: Building2 },
+    { id: 'role', label: 'Role & Reporting', icon: Building2 },
   ] as const;
 
   return (
@@ -284,10 +314,10 @@ const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ member, editingMember, 
               </div>
             )}
 
-            {/* Role & Department Tab */}
+            {/* Role & Reporting Tab */}
             {activeTab === 'role' && (
               <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Role *
@@ -306,30 +336,19 @@ const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ member, editingMember, 
                       }}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      {roles.map(role => (
+                      {availableRoles.map(role => (
                         <option key={role.id} value={role.id}>{role.name}</option>
                       ))}
                     </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Department *
-                    </label>
-                    <select
-                      required
-                      value={formData.department}
-                      onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      {departments.map(dept => (
-                        <option key={dept} value={dept}>{dept}</option>
-                      ))}
-                    </select>
+                    {availableRoles.length < roles.length && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        You can only create roles at your level or below
+                      </p>
+                    )}
                   </div>
 
                   {allowedManagerRoles.length > 0 && (
-                    <div className="md:col-span-2">
+                    <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Reports To
                       </label>

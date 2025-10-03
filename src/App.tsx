@@ -5,6 +5,7 @@ import { useToast } from './hooks/useToast';
 import AuthProvider from './components/auth/AuthProvider';
 import LoginForm from './components/auth/LoginForm';
 import SignupForm from './components/auth/SignupForm';
+import AcceptInvitation from './components/auth/AcceptInvitation';
 import LandingPage from './components/landing/LandingPage';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
@@ -20,6 +21,7 @@ import TeamList from './components/team/TeamList';
 import CompanySettings from './components/settings/CompanySettings';
 import SystemSettings from './components/settings/SystemSettings';
 import ClientsList from './components/clients/ClientsList';
+import ClientProfilePage from './components/clients/ClientProfilePage';
 import SPOCManagement from './components/clients/SPOCManagement';
 import JobProfilePage from './components/jobs/JobProfilePage';
 import ErrorBoundary from './components/common/ErrorBoundary';
@@ -40,6 +42,15 @@ const AppContent: React.FC = () => {
           <p className="mt-4 text-gray-600">Loading ATS Pro...</p>
         </div>
       </div>
+    );
+  }
+
+  // Allow accept-invitation route for both authenticated and unauthenticated users
+  if (location.pathname === '/accept-invitation') {
+    return (
+      <Routes>
+        <Route path="/accept-invitation" element={<AcceptInvitation />} />
+      </Routes>
     );
   }
 
@@ -141,6 +152,7 @@ const AppContent: React.FC = () => {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/clients" element={<ClientsList />} />
+              <Route path="/clients/:id" element={<ClientProfilePage />} />
               <Route path="/spocs" element={<SPOCManagement />} />
               <Route path="/jobs" element={<JobsList />} />
               <Route path="/jobs/:id" element={<JobProfilePage />} />

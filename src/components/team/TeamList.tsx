@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { 
-  Users, 
-  Search, 
+import React, { useState, useEffect } from 'react';
+import {
+  Users,
+  Search,
   Filter,
   Mail,
   Phone,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useTeamManagement } from '../../hooks/useTeamManagement';
 import TeamMemberForm from '../forms/TeamMemberForm';
+import { hasPermission } from '../../utils/hierarchy';
 
 // TeamMember interface removed - now using real data from Supabase
 
@@ -28,6 +29,12 @@ const TeamList: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
   const [editingMember, setEditingMember] = useState<any>(null);
+  const [canManageTeam, setCanManageTeam] = useState(false);
+
+  // Check permissions on mount
+  useEffect(() => {
+    hasPermission('CAN_MANAGE_TEAM').then(setCanManageTeam);
+  }, []);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -81,8 +88,7 @@ const TeamList: React.FC = () => {
     const matchesSearch = searchQuery === '' || 
       `${member.firstName} ${member.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
       member.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      member.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      member.department.toLowerCase().includes(searchQuery.toLowerCase());
+      member.role.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesRole = selectedRole === 'all' || member.role === selectedRole;
     const matchesStatus = selectedStatus === 'all' || member.status === selectedStatus;
@@ -200,7 +206,7 @@ const TeamList: React.FC = () => {
             />
             <input
               type="text"
-              placeholder="Search team members by name, email, role, or department..."
+              placeholder="Search team members by name, email, or role..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -214,13 +220,15 @@ const TeamList: React.FC = () => {
               <Filter size={18} />
               <span>Filters</span>
             </button>
-            <button 
-              onClick={() => setShowMemberForm(true)}
-              className="bg-blue-600 text-white px-3 py-2 text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
-            >
-              <UserPlus size={18} />
-              <span>Invite User</span>
-            </button>
+            {canManageTeam && (
+              <button
+                onClick={() => setShowMemberForm(true)}
+                className="bg-blue-600 text-white px-3 py-2 text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+              >
+                <UserPlus size={18} />
+                <span>Invite User</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -258,18 +266,6 @@ const TeamList: React.FC = () => {
                   <option value="pending">Pending</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Department
-                </label>
-                <select className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option>All Departments</option>
-                  <option>Human Resources</option>
-                  <option>Engineering</option>
-                  <option>Marketing</option>
-                  <option>Sales</option>
-                </select>
-              </div>
             </div>
           </div>
         )}
@@ -277,7 +273,9 @@ const TeamList: React.FC = () => {
 
       {/* Team Members List */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
+        {isLoading ? (
+          <div className="p-8 text-center text-gray-500">Loading team members...</div>
+        ) : filteredMembers.length > 0 ? (
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -285,7 +283,7 @@ const TeamList: React.FC = () => {
                   Member
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Role & Department
+                  Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
@@ -328,7 +326,6 @@ const TeamList: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">{member.role}</div>
-                    <div className="text-sm text-gray-500">{member.department}</div>
                     {member.directReports > 0 && (
                       <div className="text-xs text-blue-600">
                         {member.directReports} direct report{member.directReports !== 1 ? 's' : ''}
@@ -348,52 +345,54 @@ const TeamList: React.FC = () => {
                   </td>
                   {/* Permissions cell removed */}
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex items-center space-x-2">
-                      <button 
-                        onClick={() => handleEditMember(member)}
-                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Edit member"
-                      >
-                        <Edit size={16} />
-                      </button>
-                      {member.status === 'active' ? (
-                        <button 
-                          onClick={() => handleDeactivateMember(member.id)}
-                          className="p-2 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors"
-                          title="Deactivate member"
+                    {canManageTeam ? (
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handleEditMember(member)}
+                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Edit member"
                         >
-                          <XCircle size={16} />
+                          <Edit size={16} />
                         </button>
-                      ) : (
-                        <button 
-                          onClick={() => handleDeleteMember(member.id)}
-                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Remove member"
-                        >
-                          <Trash2 size={16} />
+                        {member.status === 'active' ? (
+                          <button
+                            onClick={() => handleDeactivateMember(member.id)}
+                            className="p-2 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors"
+                            title="Deactivate member"
+                          >
+                            <XCircle size={16} />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleDeleteMember(member.id)}
+                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Remove member"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                        <button className="p-1 text-gray-400 hover:text-gray-600 rounded">
+                          <MoreVertical size={16} />
                         </button>
-                      )}
-                      <button className="p-1 text-gray-400 hover:text-gray-600 rounded">
-                        <MoreVertical size={16} />
-                      </button>
-                    </div>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">View Only</span>
+                    )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        ) : (
+          <div className="text-center py-12">
+            <Users className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900">No team members found</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Try adjusting your search or filter criteria.
+            </p>
+          </div>
+        )}
       </div>
-
-      {filteredMembers.length === 0 && (
-        <div className="text-center py-12">
-          <Users className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No team members found</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Try adjusting your search or filter criteria.
-          </p>
-        </div>
-      )}
     </div>
 
     {/* Team Member Form Modal */}

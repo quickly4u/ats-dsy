@@ -56,6 +56,8 @@ export const useAuthProvider = () => {
       };
     };
 
+    let unsubscribe: (() => void) | null = null;
+
     const init = async () => {
       try {
         // Purge legacy demo auth cache if it exists
@@ -74,20 +76,23 @@ export const useAuthProvider = () => {
       } finally {
         setIsLoading(false);
       }
-    };
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        setUser(mapSupabaseUser(session.user));
-      } else {
-        setUser(null);
-      }
-    });
+      // Set up auth state listener AFTER initial load completes
+      const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) {
+          setUser(mapSupabaseUser(session.user));
+        } else {
+          setUser(null);
+        }
+      });
+
+      unsubscribe = () => listener.subscription.unsubscribe();
+    };
 
     init();
 
     return () => {
-      listener.subscription.unsubscribe();
+      if (unsubscribe) unsubscribe();
     };
   }, []);
 

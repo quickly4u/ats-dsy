@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Building2, 
   Plus, 
@@ -28,6 +29,7 @@ import SPOCManagement from './SPOCManagement';
 // Mock data removed - now using real Supabase data
 
 const ClientsList: React.FC = () => {
+  const navigate = useNavigate();
   const { clients, isLoading, error, refetch } = useClients();
   const [searchQuery, setSearchQuery] = useState('');
   const [showClientForm, setShowClientForm] = useState(false);
@@ -434,24 +436,33 @@ const ClientsList: React.FC = () => {
               {/* Actions */}
               <div className="flex items-center justify-between pt-4 border-t border-gray-100">
                 <div className="flex items-center space-x-2">
-                  <button className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                  <button 
+                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    onClick={() => navigate(`/clients/${client.id}`)}
+                    title="View Details"
+                  >
                     <Eye size={16} />
                   </button>
                   <button 
                     className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                     onClick={() => { setEditingClient(client); setShowClientForm(true); }}
+                    title="Edit Client"
                   >
                     <Edit size={16} />
                   </button>
                   <button 
                     className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
                     onClick={() => { setSpocInitialClientId(client.id); setShowSPOCManager(true); }}
+                    title="Manage SPOCs"
                   >
                     <Users size={16} />
                   </button>
                 </div>
                 
-                <button className="px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors">
+                <button 
+                  className="px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
+                  onClick={() => navigate(`/clients/${client.id}`)}
+                >
                   View Details
                 </button>
               </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase, getCurrentUserCompanyId } from '../lib/supabase';
 import { useToast } from './useToast';
+import { getAccessibleTeamMemberIds } from '../utils/hierarchy';
 
 export interface TeamMember {
   id: string;
@@ -35,7 +36,6 @@ export interface CreateTeamMemberInput {
   lastName: string;
   phone?: string;
   roleId: string;
-  department: string;
   permissions?: string[];
   reportsTo?: string;
 }
@@ -45,7 +45,6 @@ export interface UpdateTeamMemberInput {
   lastName?: string;
   phone?: string;
   roleId?: string;
-  department?: string;
   status?: 'active' | 'inactive' | 'pending';
   permissions?: string[];
   reportsTo?: string;
@@ -70,6 +69,9 @@ export const useTeamManagement = () => {
         if (!companyId) {
           throw new Error('User company not found');
         }
+
+        // Get accessible team member IDs based on hierarchy
+        const accessibleUserIds = await getAccessibleTeamMemberIds();
 
         // Fetch users with their roles
         const { data: userRows, error: userError } = await supabase
@@ -100,16 +102,21 @@ export const useTeamManagement = () => {
 
         if (userError) throw userError;
 
-        // Build direct reports count map from raw rows
+        // Filter by hierarchy: only show team members accessible to current user
+        const filteredUserRows = (userRows || []).filter((user: any) =>
+          accessibleUserIds.includes(user.id)
+        );
+
+        // Build direct reports count map from filtered rows
         const reportsCount = new Map<string, number>();
-        (userRows || []).forEach((user: any) => {
+        filteredUserRows.forEach((user: any) => {
           if (user.reports_to) {
             reportsCount.set(user.reports_to, (reportsCount.get(user.reports_to) || 0) + 1);
           }
         });
 
         // Transform user data
-        const members: TeamMember[] = (userRows || []).map((user: any) => {
+        const members: TeamMember[] = filteredUserRows.map((user: any) => {
           const userRole = user.user_roles?.[0]?.roles;
           const permissions = userRole?.permissions || [];
           
@@ -144,21 +151,25 @@ export const useTeamManagement = () => {
 
         if (roleError) throw roleError;
 
-        // Seed default roles if none exist
-        if (!roleRows || roleRows.length === 0) {
-          const defaultRoles = [
-            { name: 'Owner', description: 'Full access to all data and settings.' },
-            { name: 'Head', description: 'Full access similar to Owner.' },
-            { name: 'Manager', description: 'Manages TLs/ATLs and their teams.' },
-            { name: 'TL', description: 'Team Lead managing ATLs/Recruiters.' },
-            { name: 'ATL', description: 'Assistant Team Lead managing Recruiters.' },
-            { name: 'Recruiter', description: 'Manages candidates and applications.' },
-          ];
+        // Check if we need to add missing roles (ATL, TL, Head)
+        const existingRoleNames = (roleRows || []).map((r: any) => r.name);
+        const requiredRoles = [
+          { name: 'Owner', description: 'Full access to all data and settings.' },
+          { name: 'Head', description: 'Full access similar to Owner.' },
+          { name: 'Manager', description: 'Manages TLs/ATLs and their teams.' },
+          { name: 'TL', description: 'Team Lead managing ATLs/Recruiters.' },
+          { name: 'ATL', description: 'Assistant Team Lead managing Recruiters.' },
+          { name: 'Recruiter', description: 'Manages candidates and applications.' },
+        ];
 
+        const missingRoles = requiredRoles.filter(r => !existingRoleNames.includes(r.name));
+        
+        if (missingRoles.length > 0) {
+          console.log('Adding missing roles:', missingRoles.map(r => r.name));
           const { error: seedError } = await supabase
             .from('roles')
             .insert(
-              defaultRoles.map(r => ({
+              missingRoles.map(r => ({
                 company_id: companyId,
                 name: r.name,
                 description: r.description,
@@ -167,16 +178,20 @@ export const useTeamManagement = () => {
               }))
             );
 
-          if (seedError) throw seedError;
+          if (seedError) {
+            console.error('Error seeding roles:', seedError);
+            // Don't throw - just log the error and continue with existing roles
+          } else {
+            // Refetch all roles after adding missing ones
+            const refetchRoles = await supabase
+              .from('roles')
+              .select('*')
+              .eq('company_id', companyId)
+              .eq('is_active', true)
+              .order('name');
 
-          const refetchRoles = await supabase
-            .from('roles')
-            .select('*')
-            .eq('company_id', companyId)
-            .eq('is_active', true)
-            .order('name');
-
-          roleRows = refetchRoles.data || [];
+            roleRows = refetchRoles.data || roleRows;
+          }
         }
 
         const rolesData: Role[] = (roleRows || []).map((role: any) => ({
@@ -208,101 +223,73 @@ export const useTeamManagement = () => {
       const companyId = await getCurrentUserCompanyId();
       if (!companyId) throw new Error('User company not found');
 
-      const currentUser = await supabase.auth.getUser();
-      if (!currentUser.data.user) throw new Error('Not authenticated');
+      // Get current session for authorization
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
 
-      // First, create the invitation record
-      const { data: invitationData, error: inviteError } = await supabase
-        .from('team_invitations')
-        .insert({
-          email: input.email,
-          first_name: input.firstName,
-          last_name: input.lastName,
-          phone: input.phone,
-          company_id: companyId,
-          role_id: input.roleId,
-          reports_to: input.reportsTo || null,
-          status: 'pending',
-          invited_by: currentUser.data.user.id,
-        })
-        .select()
-        .single();
-
-      if (inviteError) throw inviteError;
-
-      // Get company details for the signup metadata
-      const { data: companyData, error: companyError } = await supabase
-        .from('companies')
-        .select('name, slug, size, subscription_plan')
-        .eq('id', companyId)
-        .single();
-
-      if (companyError) throw companyError;
-
-      // Now create the auth user - the trigger will handle the rest
-      const { data, error } = await supabase.auth.signUp({
+      const payload = {
         email: input.email,
-        password: crypto.randomUUID(), // Temporary password, user will reset via email
-        options: {
-          data: {
-            firstName: input.firstName,
-            lastName: input.lastName,
-            phone: input.phone,
-            company: {
-              name: companyData.name,
-              slug: companyData.slug,
-              size: companyData.size,
-              subscriptionPlan: companyData.subscription_plan
-            },
-          },
-          emailRedirectTo: `${window.location.origin}/dashboard`
-        }
+        firstName: input.firstName,
+        lastName: input.lastName,
+        phone: input.phone,
+        roleId: input.roleId,
+        reportsTo: input.reportsTo,
+        companyId: companyId,
+        redirectTo: `${window.location.origin}/accept-invitation`,
+      };
+
+      console.log('Sending invitation with payload:', payload);
+
+      // Make a direct fetch request to get the full error details
+      const functionsUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-user`;
+      const rawResponse = await fetch(functionsUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify(payload),
       });
 
-      if (error) {
-        // If auth signup fails, clean up the invitation
-        await supabase
-          .from('team_invitations')
-          .delete()
-          .eq('id', invitationData.id);
-        throw error;
+      const responseText = await rawResponse.text();
+      console.log('Raw Response Status:', rawResponse.status);
+      console.log('Raw Response Body:', responseText);
+
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error(`Server returned invalid JSON: ${responseText}`);
       }
 
-      // Update invitation with auth user ID and assign role to the invited user
-      if (data.user?.id) {
-        // Link auth user to invitation
-        await supabase
-          .from('team_invitations')
-          .update({ auth_user_id: data.user.id })
-          .eq('id', invitationData.id);
-
-        // Assign role immediately so the user shows up with a proper role
-        // Remove any existing roles just in case, then insert the selected role
-        await supabase
-          .from('user_roles')
-          .delete()
-          .eq('user_id', data.user.id);
-
-        const { error: roleAssignError } = await supabase
-          .from('user_roles')
-          .insert({
-            user_id: data.user.id,
-            role_id: input.roleId,
-          });
-
-        if (roleAssignError) {
-          console.warn('Failed to assign role to invited user:', roleAssignError);
-          // Do not throw here to avoid blocking the invitation email
-        }
+      if (!rawResponse.ok) {
+        const errorMsg = responseData?.error || 'Failed to send invitation';
+        const details = responseData?.details || '';
+        const code = responseData?.code || '';
+        const hint = responseData?.hint || '';
+        
+        console.error('Error from Edge Function:', { errorMsg, details, code, hint });
+        
+        let fullError = errorMsg;
+        if (details) fullError += `: ${details}`;
+        if (hint) fullError += ` (${hint})`;
+        
+        throw new Error(fullError);
       }
 
-      showSuccess(`Invitation sent to ${input.email}. They will receive a confirmation email to set up their account.`);
+      if (!responseData?.success) {
+        throw new Error(responseData?.error || 'Failed to send invitation');
+      }
+
+      showSuccess(`Invitation sent to ${input.email}. They will receive an email to set up their account.`);
       refetch();
       return { success: true };
     } catch (err: any) {
       console.error('Error inviting team member:', err);
-      showError(err.message || 'Failed to invite team member');
-      return { error: err.message };
+      const errorMessage = err.message || 'Failed to invite team member';
+      showError(errorMessage);
+      return { error: errorMessage };
     }
   }, [showSuccess, showError, refetch]);
 
